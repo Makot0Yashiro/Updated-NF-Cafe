@@ -1,0 +1,14 @@
+{# Docked bottom panel used by the admin Inventory and Menu items pages. Behaviour lives in static/js/admin/dock.js.
+   Usage: {% from "admin_dock.html" import dock %}{% call dock("inventory", "Add ingredient", 230) %}...form...{% endcall %} #}
+{% macro dock(key, title, height=300) %}
+<section class="dock" id="dock" data-key="{{ key }}" data-height="{{ height }}" aria-labelledby="dock-title">
+  <div class="dock-grip" role="separator" aria-orientation="horizontal" aria-label="Resize panel" aria-controls="dock-body" tabindex="0"></div>
+  <header class="dock-head">
+    <h2 class="dock-title" id="dock-title">{{ title }}</h2>
+    <button type="button" class="dock-toggle" aria-expanded="true" aria-controls="dock-body" aria-label="Collapse panel">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+  </header>
+  <div class="dock-body" id="dock-body">{{ caller() }}</div>
+</section>
+{% endmacro %}

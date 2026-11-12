@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block mainclass %}wide{% endblock %}
+{% from "admin_dock.html" import dock %}
+{% block mainclass %}wide full{% endblock %}
 {% block title %}Menu items · New Found Cafe{% endblock %}
 {% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/inventory.css') }}">{% endblock %}
 {% block content %}
@@ -7,41 +8,69 @@
 <h1>Menu items</h1>
 <p id="preview" class="flash" hidden></p>
 
-<div class="two inv-layout">
-  <section>
-    <div class="toolbar">
-      <div class="chips" id="filters" role="group" aria-label="Filter by category"><button type="button" data-f="all" class="on">All</button></div>
-      <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="q" type="search" placeholder="Search items" autocomplete="off" aria-label="Search menu items"></label>
-    </div>
-    <div class="mgrid" id="grid" aria-live="polite"><p class="note">Loading menu items…</p></div>
-  </section>
-
-  <aside class="card dark sticky">
-    <h2 id="form-title">Add menu item</h2>
-    <form id="form" novalidate>
-      <label>Name<input name="name" maxlength="80" required placeholder="e.g. Iced Spanish Latte"></label>
-      <div class="grid2">
-        <label>Category<select name="cat_id" required></select></label>
-        <label>Price (₱)<input name="price" type="number" min="1" step="0.01" required placeholder="0"></label>
-      </div>
-      <label>Image URL <span class="opt">(optional)</span><input name="img" type="text" maxlength="300" placeholder="/static/images/latte.jpg"></label>
-      <label class="check-row"><input name="active" type="checkbox" checked> Show on the customer menu</label>
-
-      <fieldset class="recipe">
-        <legend>Ingredients per serving <span class="req">Required</span></legend>
-        <div id="recipe"></div>
-        <button type="button" class="btn small ghost" id="add-ing">+ Add ingredient</button>
-        <small class="hint">Each order of this item takes these amounts out of stock. Add at least one ingredient.</small>
-      </fieldset>
-
-      <p class="ferr" id="ferr" role="alert" hidden></p>
-      <button class="btn full" id="save">Add menu item</button>
-      <div class="form-acts" id="edit-acts" hidden>
-        <button type="button" class="btn ghost" id="cancel">Cancel edit</button>
-        <button type="button" class="btn ghost danger" id="delete">Delete item</button>
-      </div>
-    </form>
-  </aside>
+<div class="toolbar">
+  <div class="chips grouped" id="filters" role="group" aria-label="Filter by category"></div>
+  <div class="toolbar-end">
+    <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="q" type="search" placeholder="Search items" autocomplete="off" aria-label="Search menu items"></label>
+    <button type="button" class="btn small ghost" id="manage-cats">Manage categories</button>
+  </div>
 </div>
+<div class="mgrid" id="grid" aria-live="polite"><p class="note">Loading menu items…</p></div>
+
+{% call dock("menu-items", "Add menu item", 400) %}
+<form id="form" class="mi-form" novalidate>
+  <div class="mi-details">
+    <label>Name<input name="name" maxlength="80" required placeholder="e.g. Iced Spanish Latte"></label>
+    <div class="grid2">
+      <label>Category<select name="cat_id" required></select></label>
+      <label>Price (₱)<input name="price" type="number" min="1" step="0.01" required placeholder="0"></label>
+    </div>
+    <label>Image URL <span class="opt">(optional)</span><input name="img" type="text" maxlength="300" placeholder="/static/images/latte.jpg"></label>
+    <label class="check-row"><input name="active" type="checkbox" checked> Show on the customer menu</label>
+  </div>
+  <div class="mi-side">
+    <fieldset class="recipe">
+      <legend>Ingredients per serving <span class="req">Required</span></legend>
+      <div id="recipe" class="recipe-rows"></div>
+      <button type="button" class="btn small ghost" id="add-ing">+ Add ingredient</button>
+      <small class="hint">Each order of this item takes these amounts out of stock. Add at least one ingredient.</small>
+    </fieldset>
+    <p class="ferr" id="ferr" role="alert" hidden></p>
+    <div class="form-btns">
+      <button class="btn" id="save">Add menu item</button>
+      <button type="button" class="btn ghost" id="cancel" hidden>Cancel edit</button>
+      <button type="button" class="btn ghost danger" id="delete" hidden>Delete item</button>
+    </div>
+  </div>
+</form>
+{% endcall %}
+
+<dialog id="cats" class="modal wide" aria-labelledby="cats-title">
+  <div class="modal-head"><h2 id="cats-title">Categories</h2><button type="button" class="xbtn" id="cats-close" aria-label="Close categories">×</button></div>
+  <div id="cat-list" class="cat-list"></div>
+  <form id="cat-form" class="cat-form" novalidate>
+    <h3 id="cat-form-title">Add category</h3>
+    <div class="cat-form-grid">
+      <div>
+        <label>Name<input name="name" maxlength="40" required placeholder="e.g. Pastries"></label>
+        <label>Group<input name="group" list="group-list" maxlength="40" required placeholder="Pick one or type a new group"></label>
+        <datalist id="group-list"></datalist>
+        <div class="grid2">
+          <label>Colour<input name="color" type="color" value="#8a5a33"></label>
+          <label>Emoji<input name="emoji" maxlength="8" required placeholder="🥐"></label>
+        </div>
+      </div>
+      <div class="cat-preview">
+        <span class="plabel">Preview</span>
+        <div class="ctile preview" id="cat-preview" aria-hidden="true"><em></em><span class="emo"></span><span><b></b><small></small></span></div>
+      </div>
+    </div>
+    <p class="ferr" id="cat-err" role="alert" hidden></p>
+    <div class="modal-acts">
+      <button type="button" class="btn ghost" id="cat-cancel" hidden>Cancel edit</button>
+      <button class="btn" id="cat-save">Add category</button>
+    </div>
+  </form>
+</dialog>
 <script type="module" src="{{ url_for('static', filename='js/admin/menu_items.js') }}"></script>
 {% endblock %}
