@@ -91,6 +91,9 @@ The menu lives in the database and is managed by the admin:
 - Code: `cafe/catalog.py` (reading the menu), `cafe/stock.py` (stock changes), `cafe/blueprints/inventory.py` (admin pages + JSON API).
 The landing-page carousel needs 3 clicks on the same photo to open the menu (`cafe/static/js/gallery.js`).
 
+## Tests
+Automated tests live in `tests/` (pytest, against a throwaway `nf_cafe_test` database). How to run them: [docs/TESTING.md](docs/TESTING.md).
+
 ## Database: MySQL (file: `database/nf_cafe.sql`)
 The database lives in its own file, `database/nf_cafe.sql`, and the website connects to it with the official **MySQL Connector/Python**
 package (`mysql-connector-python`, code in `cafe/db.py`).

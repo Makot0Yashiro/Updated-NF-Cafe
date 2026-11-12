@@ -106,7 +106,7 @@ def _open_for_setup():
     except mysql.connector.Error as e:
         if e.errno == 1049 and not PRODUCTION:    # unknown database (local): create it
             c = _connect(database=None)
-            c.cursor().execute(f"CREATE DATABASE `{MYSQL['database']}` DEFAULT CHARACTER SET utf8mb4")
+            c.cursor().execute(f"CREATE DATABASE IF NOT EXISTS `{MYSQL['database']}` DEFAULT CHARACTER SET utf8mb4")   # two workers may race here
             c.close()
             return _connect()
         raise SystemExit(f"\nCould not connect to MySQL: {e}\n"

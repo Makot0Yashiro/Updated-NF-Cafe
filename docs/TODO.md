@@ -54,9 +54,12 @@ These are in the GitHub history (commit `5a7f975`), so deleting them from the co
 
 None of the database-backed work has been run yet, because MySQL rejected the old password on the dev machine.
 
-- **Inventory test script:** set `MYSQL_PASSWORD` in `.env` and run it. It covers stock deduction, cancellations, sold-out items and two orders racing for the last item, and uses a throwaway `nf_cafe_test` database.
-- **Photo uploads:** JPEG, PNG and WebP work; a 6 MB file and a fake `.jpg` are refused; replace and remove work.
-- **Empty database:** it sets itself up (tables, starter menu, admin) and loads the starter menu only once.
+- **Automated tests (`tests/`, 43 tests):** step-by-step instructions are in [TESTING.md](TESTING.md). In short: set `MYSQL_PASSWORD` in `.env`, run `pip install -r requirements-dev.txt`, then `python -m pytest`.
+  They use a throwaway `nf_cafe_test` database and never touch `nf_cafe`. They cover:
+  - **Accounts:** register and login with the emailed code, password reset, logout, protected pages, the profile.
+  - **Menu and orders:** the menu (sold-out and hidden items), placing orders and stock deduction, cancellations and payments.
+  - **Admin:** every inventory API route, and photo upload / replace / remove.
+  - **Setup:** an empty database setting itself up only once, and the production checks.
 - **Every page, desktop and phone:** register (with the emailed code), login, dashboard, menu, ordering, tracking, account, logout,
   and the admin pages.
 - **Bad input on every form:** clear messages, no blank pages, no stack traces.
@@ -65,12 +68,10 @@ None of the database-backed work has been run yet, because MySQL rejected the ol
 
 The full steps are in the README under "Deploying to Render".
 
-- **Commit first:** the photo-upload and Render work isn't committed yet.
 - **Database:** create a MySQL database at a host (for example Aiven, TiDB Cloud or Railway) and copy its connection URL and CA certificate.
 - **Render:** New → Blueprint → pick the repo, then fill in `DATABASE_URL`, the SSL setting, `ADMIN_EMAIL` / `ADMIN_PASSWORD` and the mail settings.
 - **Email (must stay Flask-Mail):** Render's free plan blocks the usual SMTP ports (25, 465, 587).
   - **Try first:** an SMTP relay on port 2525, such as Brevo (`smtp-relay.brevo.com`, port 2525, a Brevo SMTP key). It isn't confirmed to work on the free plan, so test it.
-  - **Fallback:** a paid instance (about $7/month), where Gmail on port 587 works.
 - **First deploy:** watch the Logs, then sign in at `/admin-login`.
 - **Free plan:** the site sleeps when nobody's using it, so the first visit afterwards takes up to about a minute.
 
