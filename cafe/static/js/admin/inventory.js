@@ -1,8 +1,10 @@
 /* Admin › Inventory: list, add, edit, restock and delete ingredients. */
 import {$, esc, qty, load, write, toast, stockState} from './api.js';
+import {createDock} from './dock.js';
 
 const API = '/admin/api/ingredients';
 const BADGE = {low: 'Low', out: 'Out'};
+const dock = createDock();
 let list = [], filter = 'all', editing = null, restocking = null;
 
 /* ---------- list ---------- */
@@ -54,12 +56,12 @@ function startEdit(i) {
   F('name').value = i.name; F('unit').value = i.unit; F('stock').value = i.stock; F('low_at').value = i.low_at;
   F('unit').disabled = i.used_in.length > 0;   // changing the unit would break the amounts in existing recipes
   F('unit').title = F('unit').disabled ? 'Remove it from every menu item first to change its unit' : '';
-  $('form-title').textContent = 'Edit ingredient'; $('save').textContent = 'Save changes'; $('cancel').hidden = false;
+  dock.open(); dock.setTitle('Edit ingredient · ' + i.name); $('save').textContent = 'Save changes'; $('cancel').hidden = false;
   ferr(); render(); F('name').focus();
 }
 function resetForm() {
   editing = null; form.reset(); F('unit').disabled = false; F('unit').title = '';
-  $('form-title').textContent = 'Add ingredient'; $('save').textContent = 'Add ingredient'; $('cancel').hidden = true;
+  dock.setTitle('Add ingredient'); $('save').textContent = 'Add ingredient'; $('cancel').hidden = true;
   ferr(); render();
 }
 $('cancel').onclick = resetForm;

@@ -2,11 +2,12 @@
    The ingredients and recipes are the suggested starter seed for the backend. Delete this file once the backend is live. */
 const img = (k, n) => `https://loremflickr.com/480/360/${k}?lock=${n}`;
 
+// Mirrors GROUPS in menu_data.py: group = top-level heading, sort = display order.
 const CATEGORIES = [
-  {id: 'food', name: 'Food', color: '#c8553d', emoji: '🍔'},
-  {id: 'coffee', name: 'Coffee', color: '#8a5a33', emoji: '☕'},
-  {id: 'icetea', name: 'Ice Tea', color: '#3f8a6b', emoji: '🧋'},
-  {id: 'floats', name: 'Floats', color: '#b5578a', emoji: '🍨'},
+  {id: 'food', name: 'Food', group: 'Food', color: '#c8553d', emoji: '🍔', sort: 1},
+  {id: 'coffee', name: 'Coffee', group: 'Beverages', color: '#8a5a33', emoji: '☕', sort: 2},
+  {id: 'icetea', name: 'Ice Tea', group: 'Beverages', color: '#3f8a6b', emoji: '🧋', sort: 3},
+  {id: 'floats', name: 'Floats', group: 'Beverages', color: '#b5578a', emoji: '🍨', sort: 4},
 ];
 
 // [id, name, unit, stock, low_at]
