@@ -5,8 +5,8 @@
 2. Open the terminal (Ctrl+`) and create a virtual environment:
    - Windows: `python -m venv .venv` then `.venv\Scripts\activate`
    - Mac/Linux: `python3 -m venv .venv` then `source .venv/bin/activate`
-3. Install Flask: `pip install -r requirements.txt`
-4. Start the site: `python app.py`
+3. Install the packages: `pip install -r requirements.txt`
+4. Copy `.env.example` to `.env` and set `MYSQL_PASSWORD` (see **Database: MySQL** below), then start the site: `python app.py`
 5. Open http://127.0.0.1:5000
 
 Tip: press F5 in VS Code to run it with the debugger (uses `.vscode/launch.json`).
@@ -32,16 +32,13 @@ All blueprints are registered in **`cafe/blueprints/__init__.py`**.
 To protect any page, add `@login_required` (from `cafe/auth_utils.py`) under its route.
 
 ## Database
-SQLite file **`instance/cafe.db`**, created automatically on first run (schema in `cafe/db.py`).
-- `users` — id, name, email (unique), phone, password_hash, created_at
-- `orders` — id, user_id, customer_name, order_type, table_no, payment, note, items_json, subtotal, coupon, discount, total, status, created_at
-
-Passwords are never stored in plain text (hashed with Werkzeug/scrypt). To view the data in VS Code, install the
-"SQLite Viewer" extension and open `instance/cafe.db`. To reset everything, stop the server and delete the `instance/` folder.
+MySQL - see **Database: MySQL** below. Table definitions live in `database/nf_cafe.sql`; the app creates any missing tables on start-up.
+Passwords are never stored in plain text (hashed with Werkzeug/scrypt).
 
 ## Where to edit things
-- **Menu items, prices, coupons, tables:** `cafe/menu_data.py`
-- **Food photos:** put images in `cafe/static/images/` and add `"img": "latte.jpg"` to the item in `menu_data.py`
+- **Menu items, prices, photos, ingredients, categories:** in the site, under **Admin -> Menu items** and **Admin -> Inventory**
+- **Coupons, cafe location:** `cafe/menu_data.py`
+- **Settings (database, email, admin account, secret key):** environment variables / `.env` - see `.env.example`
 - **Colors / fonts / layout:** `cafe/static/css/cafe.css`
 - **Shared header & layout:** `cafe/templates/base.html`
 - **Login / register page:** `cafe/templates/auth.html`
@@ -50,9 +47,10 @@ Passwords are never stored in plain text (hashed with Werkzeug/scrypt). To view 
 
 ## Security notes
 - Forms and the order API use a CSRF token; prices are recalculated on the server.
-- A secret key is generated once and stored in `instance/secret_key` (or set the `SECRET_KEY` environment variable).
-- Before putting the site online: run it behind HTTPS, set `SESSION_COOKIE_SECURE=True`, turn off debug mode,
-  and consider login rate-limiting (e.g. Flask-Limiter).
+- Locally a secret key is generated once in `instance/secret_key` (git-ignored); in production `SECRET_KEY` must be set.
+- `APP_ENV=production` turns on HTTPS-only session cookies and proxy handling, and turns off debug mode.
+- No passwords belong in the code: keep them in `.env` (git-ignored) locally and in Render's Environment tab online.
+- Consider login rate-limiting (e.g. Flask-Limiter) before heavy public use.
 
 ## Order tracking (new)
 - After **Place order** on `/menu` you land on `/your-order?order=ID`. `/your-order` lists all your orders with a live status badge,
@@ -97,12 +95,43 @@ The landing-page carousel needs 3 clicks on the same photo to open the menu (`ca
 The database lives in its own file, `database/nf_cafe.sql`, and the website connects to it with the official **MySQL Connector/Python**
 package (`mysql-connector-python`, code in `cafe/db.py`).
 1. Install **MySQL Server** + **MySQL Workbench**. Open Workbench, connect to your local server.
-2. In Workbench: **File -> Open SQL Script...** -> choose `database/nf_cafe.sql` -> press the lightning bolt. This creates the `nf_cafe`
-   database, the `users`, `orders`, menu and inventory tables, and a starter admin account. (Safe to run again; it never deletes data.)
-3. In VS Code open the project folder, put your MySQL password in `cafe/config.py` (same user/password as your Workbench connection).
-4. Terminal: `pip install -r requirements.txt`, then run `python app.py` (or press F5 - there is a ready-made launch configuration).
-5. Back in Workbench: refresh Schemas -> `nf_cafe` -> Tables -> right-click `orders` -> *Select Rows* to see live data.
+2. Copy `.env.example` to `.env` and put your MySQL password in `MYSQL_PASSWORD` (same user/password as your Workbench connection).
+3. Terminal: `pip install -r requirements.txt`, then run `python app.py` (or press F5 - there is a ready-made launch configuration).
+   On first start the app creates the `nf_cafe` database and every table, loads the starter menu, and creates the admin account.
+   (You can still run `database/nf_cafe.sql` in Workbench yourself; it's safe to run again and never deletes data.)
+4. Back in Workbench: refresh Schemas -> `nf_cafe` -> Tables -> right-click `orders` -> *Select Rows* to see live data.
 If the site can't connect it stops with a message saying what to check.
+
+## Deploying to Render
+The app runs on [Render](https://render.com) as a Python web service (`render.yaml`), with MySQL from any hosted provider.
+1. **Create the MySQL database** at a provider (for example Aiven, TiDB Cloud Serverless or Railway). From its dashboard copy:
+   - the connection details, written as one URL: `mysql://USER:PASSWORD@HOST:PORT/DATABASE`
+     (if the password has special characters like `@` `:` `/` `#`, URL-encode them, e.g. `@` -> `%40`);
+   - the **CA certificate** (often "ca.pem" / "Download CA certificate"), if the provider gives one.
+   The tables don't need to be created by hand; the app does that on its first start.
+2. **Push this repo to GitHub**, then in Render: **New -> Blueprint** -> choose the repo. Render reads `render.yaml`.
+3. **Fill in the environment variables** Render asks for:
+   - `DATABASE_URL` - the URL from step 1.
+   - SSL: in the service's **Environment -> Secret Files** add a file named `ca.pem` with the certificate, then set
+     `MYSQL_SSL_CA=/etc/secrets/ca.pem`. No certificate from your provider? Set `MYSQL_SSL=required` instead (or leave both empty
+     if the provider doesn't use SSL).
+   - `ADMIN_EMAIL` / `ADMIN_PASSWORD` - the first admin login (a strong password; only used while there is no admin yet).
+   - `MAIL_USERNAME` / `MAIL_PASSWORD` - the SMTP account for the verification codes (see the email caveat below).
+   - `SECRET_KEY` is generated by Render and `APP_ENV=production` is already set.
+4. **Deploy.** The first start creates every table, the starter menu and the admin account (watch the service's **Logs**).
+   Then open `https://<your-service>.onrender.com/admin-login` and sign in with `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
+5. Later changes deploy automatically when you push to the connected branch.
+
+Free-tier caveats:
+- The free web service **sleeps after a while without visitors**; the next visit takes up to about a minute to wake it.
+- **Free web services block the usual SMTP ports** (25, 465 and 587, since September 2025), so Gmail SMTP won't work there.
+  The app still sends with Flask-Mail; pick one of these:
+  - an SMTP relay on **port 2525** (not on Render's block list), e.g. Brevo: `MAIL_SERVER=smtp-relay.brevo.com`, `MAIL_PORT=2525`,
+    `MAIL_USE_TLS=1`, `MAIL_USERNAME` = your Brevo SMTP login, `MAIL_PASSWORD` = a Brevo **SMTP key**, `MAIL_SENDER` = a sender address
+    verified in Brevo. Test it with one sign-up after deploying;
+  - or a paid instance type, where Gmail on port 587 works as it does locally.
+  Until email works, codes appear in the service's Logs (when `MAIL_USERNAME` is empty).
+- Menu photos are stored **in the database**, so they survive redeploys and restarts (Render's own disk is wiped on every deploy).
 
 ## Payments (QR) 
 - Checkout has two payment choices: **Cash** or **Online (QR)**. Online shows the GCash/InstaPay QR (`cafe/static/images/gcash-qr.png`,
@@ -114,7 +143,7 @@ If the site can't connect it stops with a message saying what to check.
 ## Email verification codes (OTP via SMTP / Flask-Mail)
 - Customers confirm sign-up **and** every login with a 6-digit code emailed to them (valid 10 minutes, 5 tries, resend after 30 s).
   Admin login (`/admin-login`) does not use codes.
-- Set your SMTP account in `cafe/mail_config.py` (or the `MAIL_*` environment variables). For Gmail: turn on 2-Step Verification, create an
+- Set your SMTP account in the `MAIL_*` environment variables (`.env` locally). For Gmail: turn on 2-Step Verification, create an
   App password (myaccount.google.com/apppasswords) and use it as `MAIL_PASSWORD`; server `smtp.gmail.com`, port 587, TLS.
 - If `MAIL_USERNAME` is empty, codes are printed in the terminal instead of emailed (handy for testing).
 - On start-up the app adds any new columns/tables (`pay_status`, `pay_ref`, `email_otps`, ...) to your existing MySQL database, and renames old

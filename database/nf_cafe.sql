@@ -104,6 +104,16 @@ CREATE TABLE IF NOT EXISTS menu_item_ingredients (
   FOREIGN KEY (ingredient_id) REFERENCES ingredients(id) ON DELETE RESTRICT
 ) DEFAULT CHARSET=utf8mb4;
 
+-- Photos uploaded in Admin > Menu items (resized WebP, served at /media/items/<id>.webp)
+CREATE TABLE IF NOT EXISTS menu_item_images (
+  item_id    VARCHAR(40) PRIMARY KEY,
+  mime       VARCHAR(20) NOT NULL,
+  data       MEDIUMBLOB NOT NULL,
+  version    VARCHAR(16) NOT NULL,             -- short hash of the bytes; changes the photo URL so browsers fetch the new one
+  updated_at DATETIME NOT NULL,
+  FOREIGN KEY (item_id) REFERENCES menu_items(id) ON DELETE CASCADE
+) DEFAULT CHARSET=utf8mb4;
+
 -- Starter admin account:  admin@newfoundcafe.com  /  admin123   (change the password after first login!)
 INSERT INTO users (name, email, password_hash, is_admin)
 VALUES ('Admin', 'admin@newfoundcafe.com', 'scrypt:32768:8:1$oxeIAqPemGViYc1f$ba1c3d67f766df703252ffa77587c63c3d08496f067515f5f362ea9c4ea55473fffcb39e8c425100fa635eff7f9669238adef6df45743e53cd47381e76bb715c', 1)

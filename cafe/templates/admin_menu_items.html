@@ -24,7 +24,25 @@
       <label>Category<select name="cat_id" required></select></label>
       <label>Price (₱)<input name="price" type="number" min="1" step="0.01" required placeholder="0"></label>
     </div>
-    <label>Image URL <span class="opt">(optional)</span><input name="img" type="text" maxlength="300" placeholder="/static/images/latte.jpg"></label>
+    <div class="photo-field">
+      <span class="flabel" id="photo-label">Photo <span class="opt">(optional)</span></span>
+      <input type="file" id="photo-file" class="vh" accept="image/jpeg,image/png,image/webp" aria-labelledby="photo-label" aria-describedby="photo-hint photo-note">
+      <label for="photo-file" class="dropzone" id="photo-drop">
+        <img id="photo-preview" alt="Photo preview" hidden>
+        <span class="dz-empty" id="photo-empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 16V4m0 0-4 4m4-4 4 4"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+          <b>Click to choose a photo</b><span>or drag one here</span>
+        </span>
+      </label>
+      <small class="hint" id="photo-hint">JPEG, PNG or WebP, up to 5 MB. It's resized automatically.</small>
+      <small class="hint photo-note" id="photo-note" aria-live="polite"></small>
+      <div class="photo-acts" id="photo-acts" hidden>
+        <button type="button" class="btn small ghost" id="photo-change">Change photo</button>
+        <button type="button" class="btn small ghost danger" id="photo-remove">Remove photo</button>
+      </div>
+      <button type="button" class="linkbtn" id="show-url" aria-expanded="false" aria-controls="url-field">or paste an image URL</button>
+      <label id="url-field" hidden>Image URL<input id="img-url" name="img" type="text" maxlength="300" placeholder="https://… or /static/images/latte.jpg"></label>
+    </div>
     <label class="check-row"><input name="active" type="checkbox" checked> Show on the customer menu</label>
   </div>
   <div class="mi-side">

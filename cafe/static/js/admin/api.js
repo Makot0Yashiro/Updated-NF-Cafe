@@ -10,10 +10,12 @@ export class ApiError extends Error {
   constructor(message, status) { super(message); this.status = status; }
 }
 
-/** JSON request with the CSRF header. Throws ApiError with the server's {error} message on failure. */
+/** Request with the CSRF header; body is sent as JSON, or as-is when it's FormData (file uploads).
+    Throws ApiError with the server's {error} message on failure. */
 export async function api(method, url, body) {
   const opts = {method, headers: {'X-CSRFToken': CSRF}};
-  if (body !== undefined) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  if (body instanceof FormData) opts.body = body;
+  else if (body !== undefined) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
   const r = await fetch(url, opts);
   if (r.status === 204) return null;
   const data = await r.json().catch(() => ({}));

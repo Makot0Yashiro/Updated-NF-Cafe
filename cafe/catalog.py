@@ -1,6 +1,7 @@
 """Reading the menu and inventory from the database (categories, menu items with their ingredients, ingredients)."""
 from collections import defaultdict
 from decimal import Decimal
+from urllib.parse import quote
 from .db import get_db
 
 
@@ -70,7 +71,8 @@ def _recipes(item_ids):
 
 def items(ids=None, active_only=False):
     """Menu items (with recipe) in display order, optionally only the given ids / only active ones."""
-    sql, args = "SELECT m.*, c.name AS cat_name FROM menu_items m JOIN categories c ON c.id=m.cat_id", []
+    sql, args = ("SELECT m.*, c.name AS cat_name, p.version AS photo_version FROM menu_items m JOIN categories c ON c.id=m.cat_id "
+                 "LEFT JOIN menu_item_images p ON p.item_id=m.id"), []
     conds = []
     if ids is not None:
         if not ids:
@@ -90,8 +92,16 @@ def servings(recipe):
     return min((int(r["stock"] // r["qty"]) for r in recipe), default=0)
 
 
+def photo_url(r):
+    """What an item shows: its uploaded photo (versioned URL, cached forever) or else the image URL typed in, or ''."""
+    if r.get("photo_version"):
+        return f"/media/items/{quote(r['id'])}.webp?v={r['photo_version']}"
+    return r["img"] or ""
+
+
 def item_out(r):
-    return {"id": r["id"], "name": r["name"], "cat_id": r["cat_id"], "price": num(r["price"]), "img": r["img"] or "", "active": bool(r["active"]),
+    return {"id": r["id"], "name": r["name"], "cat_id": r["cat_id"], "price": num(r["price"]), "active": bool(r["active"]),
+            "img": photo_url(r), "img_url": r["img"] or "", "has_photo": bool(r.get("photo_version")),
             "recipe": [{"ingredient_id": x["ingredient_id"], "name": x["name"], "unit": x["unit"], "qty": num(x["qty"])} for x in r["recipe"]]}
 
 
@@ -106,7 +116,7 @@ def customer_groups():
     Active items only; categories without active items are left out; sold-out items stay visible but greyed out."""
     by_cat = defaultdict(list)
     for r in items(active_only=True):
-        by_cat[r["cat_id"]].append({"id": r["id"], "name": r["name"], "price": num(r["price"]), "img": r["img"] or "",
+        by_cat[r["cat_id"]].append({"id": r["id"], "name": r["name"], "price": num(r["price"]), "img": photo_url(r),
                                     "cat": r["cat_name"], "sold_out": servings(r["recipe"]) < 1})
     groups = {}
     for c in categories():

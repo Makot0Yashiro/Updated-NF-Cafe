@@ -1,0 +1,36 @@
+# Render Blueprint (https://render.com/docs/blueprint-spec): New > Blueprint > pick this repo.
+# Secrets marked "sync: false" are asked for once, when the Blueprint is first created.
+services:
+  - type: web
+    name: nf-cafe
+    runtime: python
+    plan: free                      # sleeps when idle; free services also can't send SMTP email (see README)
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 60
+    healthCheckPath: /healthz
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true         # random value made by Render; keeps logins valid across deploys
+      - key: DATABASE_URL           # mysql://user:password@host:port/database
+        sync: false
+      - key: MYSQL_SSL_CA           # path to the provider's CA certificate, e.g. /etc/secrets/ca.pem (a Render Secret File)
+        sync: false
+      - key: MYSQL_SSL              # "required" if your provider needs SSL and you have no CA file
+        sync: false
+      - key: ADMIN_EMAIL            # first admin account (only used while the database has no admin)
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      # Free Render services block SMTP ports 25/465/587: use a relay on port 2525 (e.g. smtp-relay.brevo.com), or Gmail/587 on a paid plan.
+      - key: MAIL_SERVER
+        sync: false
+      - key: MAIL_PORT
+        sync: false
+      - key: MAIL_SENDER
+        sync: false
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false

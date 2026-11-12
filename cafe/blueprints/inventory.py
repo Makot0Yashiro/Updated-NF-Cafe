@@ -5,7 +5,7 @@ from decimal import Decimal, InvalidOperation
 from flask import Blueprint, render_template, request, jsonify
 from ..db import get_db, IntegrityError
 from ..auth_utils import check_csrf
-from .. import catalog
+from .. import catalog, images
 from .admin import admin_required
 
 bp = Blueprint("inventory", __name__)
@@ -239,8 +239,35 @@ def edit_item(item_id):
 def delete_item(item_id):
     check_csrf()
     _item_or_404(item_id)
-    get_db().execute("DELETE FROM menu_items WHERE id=?", (item_id,))   # recipe rows go with it (ON DELETE CASCADE)
+    get_db().execute("DELETE FROM menu_items WHERE id=?", (item_id,))   # recipe rows + photo go with it (ON DELETE CASCADE)
     return _commit(lambda: ("", 204))
+
+
+@bp.post("/admin/api/menu-items/<item_id>/image")
+@admin_required
+def upload_item_image(item_id):
+    check_csrf()
+    _item_or_404(item_id)
+    f = request.files.get("file")
+    if not f:
+        raise Invalid("Choose a photo to upload.")
+    try:
+        data, mime, version = images.process(f.read(images.MAX_UPLOAD_BYTES + 1))
+    except images.BadImage as e:
+        raise Invalid(str(e), e.status)
+    get_db().execute("INSERT INTO menu_item_images(item_id,mime,data,version,updated_at) VALUES(?,?,?,?,UTC_TIMESTAMP()) "
+                     "ON DUPLICATE KEY UPDATE mime=VALUES(mime), data=VALUES(data), version=VALUES(version), updated_at=VALUES(updated_at)",
+                     (item_id, mime, data, version))
+    return _commit(lambda: jsonify(catalog.item(item_id)))
+
+
+@bp.delete("/admin/api/menu-items/<item_id>/image")
+@admin_required
+def delete_item_image(item_id):
+    check_csrf()
+    _item_or_404(item_id)
+    get_db().execute("DELETE FROM menu_item_images WHERE item_id=?", (item_id,))
+    return _commit(lambda: jsonify(catalog.item(item_id)))
 
 
 # ===================== categories =====================

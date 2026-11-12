@@ -2,6 +2,7 @@
 import {$, esc, qty, peso, api, toast, servings} from './api.js';
 import {createDock} from './dock.js';
 import {grouped, initCategories} from './categories.js';
+import {createPhotoPicker} from './photo.js';
 
 const API = '/admin/api/menu-items';
 const dock = createDock();
@@ -113,17 +114,20 @@ $('add-ing').onclick = () => {
 /* ---------- add / edit form (in the docked panel) ---------- */
 const form = $('form'), F = name => form.elements[name];
 const ferr = msg => { $('ferr').hidden = !msg; $('ferr').textContent = msg || ''; };
+const photo = createPhotoPicker(ferr);
+photo.load(null);
 
-function startEdit(it) {
+function startEdit(it, {keepFile = false} = {}) {
   editing = it.id;
-  F('name').value = it.name; F('cat_id').value = it.cat_id; F('price').value = it.price; F('img').value = it.img || ''; F('active').checked = it.active;
+  F('name').value = it.name; F('cat_id').value = it.cat_id; F('price').value = it.price; F('active').checked = it.active;
+  photo.load(it, {keepFile});
   recipeBox.innerHTML = ''; it.recipe.forEach(r => addRow(r)); syncRows();
   dock.open(); dock.setTitle('Edit menu item · ' + it.name);
   $('save').textContent = 'Save changes'; $('cancel').hidden = false; $('delete').hidden = false;
   ferr(); render(); F('name').focus();
 }
 function resetForm() {
-  editing = null; form.reset(); recipeBox.innerHTML = ''; syncRows();
+  editing = null; form.reset(); photo.load(null); recipeBox.innerHTML = ''; syncRows();
   dock.setTitle('Add menu item');
   $('save').textContent = 'Add menu item'; $('cancel').hidden = true; $('delete').hidden = true;
   ferr(); render();
@@ -146,14 +150,38 @@ function readForm() {
   return [body, null];
 }
 
+const upsert = saved => { items = items.some(it => it.id === saved.id) ? items.map(it => it.id === saved.id ? saved : it) : [...items, saved]; };
+function busy(text) {
+  $('save').disabled = $('cancel').disabled = $('delete').disabled = !!text;
+  $('save').textContent = text || (editing ? 'Save changes' : 'Add menu item');
+}
+
+/** One Save does both: the item's details first, then its photo (upload or removal). */
 form.onsubmit = async e => {
   e.preventDefault();
+  if ($('save').disabled) return;
   const [body, err] = readForm(); if (err) return ferr(err);
+  const wasNew = !editing;
+  let saved;
+  busy('Saving…');
   try {
-    const saved = editing ? await api('PUT', `${API}/${encodeURIComponent(editing)}`, body) : await api('POST', API, body);
-    items = editing ? items.map(it => it.id === editing ? saved : it) : [...items, saved];
-    toast(editing ? 'Menu item updated' : 'Menu item added'); resetForm(); renderFilters();
-  } catch (ex) { ferr(ex.message); }
+    saved = editing ? await api('PUT', `${API}/${encodeURIComponent(editing)}`, body) : await api('POST', API, body);
+    upsert(saved);
+  } catch (ex) { busy(null); return ferr(ex.message); }
+
+  const {file, remove} = photo.pending(), photoUrl = `${API}/${encodeURIComponent(saved.id)}/image`;
+  try {
+    if (file) {
+      busy('Uploading photo…');
+      const fd = new FormData(); fd.append('file', file);
+      saved = await api('POST', photoUrl, fd);
+    } else if (remove) saved = await api('DELETE', photoUrl);
+    upsert(saved);
+  } catch (ex) {                     // the item is saved; keep it open with the chosen photo so Save retries just that
+    busy(null); startEdit(saved, {keepFile: true}); renderFilters();
+    return ferr(`${wasNew ? 'Item added' : 'Changes saved'}, but the photo wasn't saved: ${ex.message} Press Save to try again.`);
+  }
+  busy(null); toast(wasNew ? 'Menu item added' : 'Menu item updated'); resetForm(); renderFilters();
 };
 
 $('delete').onclick = async () => {
