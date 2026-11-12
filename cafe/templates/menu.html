@@ -17,8 +17,9 @@
     <p class="label"><span id="curlabel">All items</span><span id="curcount"></span></p>
     <div class="items">
       {% for g in groups %}{% for c in g.cats %}{% for i in c['items'] %}
-      <button class="tile" data-cat="{{ c.id }}" data-id="{{ i.id }}" data-name="{{ i.name }}" data-price="{{ i.price }}" data-e="{{ c.emoji }}" style="--c:{{ c.color }}">
+      <button class="tile{{ ' out' if i.sold_out }}" data-cat="{{ c.id }}" data-id="{{ i.id }}" data-name="{{ i.name }}" data-price="{{ i.price }}" data-e="{{ c.emoji }}" style="--c:{{ c.color }}"{% if i.sold_out %} disabled aria-label="{{ i.name }}, sold out"{% endif %}>
         <img src="{{ i.img }}" alt="" loading="lazy" onerror="this.style.display='none'">
+        {% if i.sold_out %}<span class="soldout">Sold out</span>{% endif %}
         <span class="q">0</span><span class="txt"><b>{{ i.name }}</b><span>₱{{ i.price }}</span></span>
       </button>
       {% endfor %}{% endfor %}{% endfor %}

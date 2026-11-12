@@ -15,6 +15,8 @@
     {% if is_admin %}
     <a href="{{ url_for('admin.dashboard') }}" class="{{ 'on' if request.endpoint == 'admin.dashboard' }}">Analytics</a>
     <a href="{{ url_for('admin.orders_page') }}" class="{{ 'on' if request.endpoint == 'admin.orders_page' }}">Orders</a>
+    <a href="{{ url_for('inventory.ingredients_page') }}" class="{{ 'on' if request.endpoint == 'inventory.ingredients_page' }}">Inventory</a>
+    <a href="{{ url_for('inventory.items_page') }}" class="{{ 'on' if request.endpoint == 'inventory.items_page' }}">Menu items</a>
     {% else %}
     <a href="{{ url_for('menu.menu') }}" class="{{ 'on' if request.endpoint == 'menu.menu' }}">Menu</a>
     <a href="{{ url_for('orders.your_order') }}" class="{{ 'on' if request.endpoint == 'orders.your_order' }}">Your Order</a>

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block mainclass %}wide{% endblock %}
+{% block title %}Inventory · New Found Cafe{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/inventory.css') }}">{% endblock %}
+{% block content %}
+{% include "admin_tabs.html" %}
+<h1>Inventory</h1>
+<p id="preview" class="flash" hidden></p>
+<div class="kpis">
+  <div class="kpi"><small>Ingredients</small><b id="k-total">–</b></div>
+  <div class="kpi"><small>Low stock</small><b id="k-low">–</b></div>
+  <div class="kpi"><small>Out of stock</small><b id="k-out">–</b></div>
+</div>
+
+<div class="two inv-layout">
+  <section>
+    <div class="toolbar">
+      <div class="chips" id="filters" role="group" aria-label="Filter ingredients">
+        <button type="button" data-f="all" class="on">All</button><button type="button" data-f="low">Low stock</button><button type="button" data-f="out">Out of stock</button>
+      </div>
+      <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="q" type="search" placeholder="Search ingredients" autocomplete="off" aria-label="Search ingredients"></label>
+    </div>
+    <div class="card flush">
+      <div class="ihead" aria-hidden="true"><span>Ingredient</span><span>In stock</span><span>Alert at</span><span>Used in</span><span></span></div>
+      <div id="rows" aria-live="polite"><p class="note">Loading ingredients…</p></div>
+    </div>
+  </section>
+
+  <aside class="card dark sticky">
+    <h2 id="form-title">Add ingredient</h2>
+    <form id="form" novalidate>
+      <label>Name<input name="name" maxlength="80" required placeholder="e.g. Fresh milk"></label>
+      <div class="grid2">
+        <label>Unit<select name="unit"><option value="g">Grams (g)</option><option value="ml">Millilitres (ml)</option><option value="pc">Pieces (pc)</option></select></label>
+        <label>In stock<input name="stock" type="number" min="0" step="any" required placeholder="0"></label>
+      </div>
+      <label>Low-stock alert at<input name="low_at" type="number" min="0" step="any" required placeholder="e.g. 500"></label>
+      <small class="hint">It's marked “Low” once stock drops to this amount.</small>
+      <p class="ferr" id="ferr" role="alert" hidden></p>
+      <button class="btn full" id="save">Add ingredient</button>
+      <button type="button" class="btn ghost full" id="cancel" hidden>Cancel edit</button>
+    </form>
+  </aside>
+</div>
+
+<dialog id="restock" class="modal" aria-labelledby="rs-title">
+  <form method="dialog" id="rs-form" novalidate>
+    <h2 id="rs-title">Restock</h2>
+    <p class="rs-line">Current stock: <b id="rs-now"></b></p>
+    <label>Amount to add<span class="unitfield"><input id="rs-amt" type="number" min="0" step="any" required><em id="rs-unit"></em></span></label>
+    <p class="rs-line">After restock: <b id="rs-after">–</b></p>
+    <p class="ferr" id="rs-err" role="alert" hidden></p>
+    <div class="modal-acts"><button type="button" class="btn ghost" id="rs-cancel">Cancel</button><button class="btn">Add stock</button></div>
+  </form>
+</dialog>
+<script type="module" src="{{ url_for('static', filename='js/admin/inventory.js') }}"></script>
+{% endblock %}
