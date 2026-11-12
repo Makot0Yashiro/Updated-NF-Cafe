@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card narrow">
+  <p class="eyebrow"><i></i><b></b>Check your email</p>
+  <h1 style="font-size:2.2rem">Verify</h1>
+  <p>We sent a 6-digit code to <b>{{ email }}</b>. It expires in 10 minutes.</p>
+  <form method="post" action="{{ url_for('auth.verify', next=request.args.get('next')) }}">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <label>Verification code<input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="\d{6}" required autofocus style="letter-spacing:.5em;font-size:1.4rem;text-align:center"></label>
+    <button class="btn full">Verify</button>
+  </form>
+  <form method="post" action="{{ url_for('auth.resend', next=request.args.get('next')) }}" style="margin-top:1rem">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <small>Didn't get it?</small> <button class="btn small ghost" style="margin:0 0 0 .4rem">Send a new code</button>
+    <a href="{{ url_for('auth.login') }}" style="margin-left:.8rem;font-size:.85rem">Start over</a>
+  </form>
+</div>
+{% endblock %}

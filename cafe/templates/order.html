@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+{% endblock %}
+{% block content %}
+<p class="eyebrow"><i></i><b></b>Live status</p>
+<h1>Your Order</h1>
+<p class="lead">Follow your order from our kitchen to your table or doorstep.</p>
+{% if not orders %}
+<a class="btn" href="{{ url_for('menu.menu') }}">Browse the menu</a>
+{% else %}
+<button class="btn small ghost" id="refresh" style="margin-bottom:1rem">Refresh orders</button>
+{% for o in orders %}
+<div class="card order" data-id="{{ o.id }}">
+  <div class="row"><h2>Order #{{ o.id }}</h2><span class="badge" data-status></span></div>
+  <small data-meta></small>
+  <ul>{% for i in o['items'] %}<li>{{ i.qty }} × {{ i.name }}</li>{% endfor %}</ul>
+  <p>Total: ₱{{ '{:,.2f}'.format(o.total) }}</p>
+  {% if o.order_type == 'delivery' %}<p>Delivery address: {{ o.address or 'Pinned location' }}</p>{% endif %}
+  <p>Payment: <span class="pbadge" data-pay></span></p>
+  <details class="qrmore" hidden><summary>Show the payment QR</summary>
+    <div class="qr"><img src="{{ url_for('static', filename='images/gcash-qr.png') }}" alt="GCash InstaPay QR code"></div></details>
+  <ol class="steps"></ol>
+  <button class="btn small ghost tog">Track on map</button>
+  <div class="omap" hidden></div>
+  <small data-note></small>
+</div>
+{% endfor %}
+<script>
+const orders = {{ orders|tojson }}, cafe = {{ cafe|tojson }}, maps = {};
+const PAY = {pending: ['Awaiting confirmation', 'wait'], paid: ['Payment confirmed', 'ok'], rejected: ['Payment not found - please contact the cafe', 'bad']};
+const NOTE = {delivery: 'The marker moves once your order is out for delivery.', pickup: 'Pick up at New Found Cafe when your order is ready.', 'dine-in': 'Your order will be served at your table.'};
+function paint(card, o) {
+  card.querySelector('[data-status]').textContent = o.status;
+  card.querySelector('[data-meta]').textContent = new Date(o.created_at).toLocaleString() + ' · ' + o.order_type + ' · ' + (o.payment === 'online' ? 'online payment' : 'cash');
+  const i = o.steps.indexOf(o.status);
+  card.querySelector('.steps').innerHTML = o.steps.map((s, n) => `<li class="${n <= i ? 'done' : ''}">${s}</li>`).join('');
+  const [t, k] = o.payment === 'online' ? (PAY[o.pay_status] || PAY.pending) : (o.pay_status === 'paid' ? ['Paid', 'ok'] : ['Pay on receipt', 'off']);
+  const b = card.querySelector('[data-pay]'); b.textContent = t; b.className = 'pbadge ' + k;
+  card.querySelector('.qrmore').hidden = !(o.payment === 'online' && o.pay_status !== 'paid');
+  card.querySelector('[data-note]').textContent = NOTE[o.order_type] || '';
+}
+function showMap(card, o, fit) {
+  const div = card.querySelector('.omap'); let m = maps[o.id];
+  if (!m) {
+    const map = L.map(div).setView(cafe, 15);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(map);
+    L.marker(cafe).addTo(map).bindPopup('New Found Cafe');
+    m = maps[o.id] = {map, courier: null, home: null}; fit = true;
+  }
+  const pos = [o.lat ?? cafe[0], o.lng ?? cafe[1]], pts = [cafe];
+  if (o.order_type === 'delivery') {
+    if (!m.courier) m.courier = L.circleMarker(pos, {radius: 9, color: '#43301f', fillColor: '#d4793f', fillOpacity: 1}).addTo(m.map);
+    m.courier.setLatLng(pos).bindTooltip('Your order');
+    if (o.dest && !m.home) m.home = L.marker(o.dest).addTo(m.map).bindPopup('Delivery address');
+    pts.push(pos); if (o.dest) pts.push(o.dest);
+  }
+  if (fit) { m.map.invalidateSize(); m.map.fitBounds(L.latLngBounds(pts).pad(.3), {maxZoom: 16}); }
+}
+document.querySelectorAll('.order').forEach(card => {
+  const o = orders.find(x => x.id === +card.dataset.id), div = card.querySelector('.omap'), tog = card.querySelector('.tog');
+  paint(card, o);
+  tog.onclick = () => { div.hidden = !div.hidden; tog.textContent = div.hidden ? 'Track on map' : 'Hide map'; if (!div.hidden) showMap(card, o, true); };
+});
+async function refresh() {
+  const r = await fetch('/api/orders'); if (!r.ok) return;
+  (await r.json()).forEach(o => { const c = document.querySelector(`.order[data-id="${o.id}"]`); if (!c) return;
+    Object.assign(orders.find(x => x.id === o.id), o); paint(c, o); if (!c.querySelector('.omap').hidden) showMap(c, o, false); });
+}
+document.getElementById('refresh').onclick = refresh; setInterval(refresh, 8000);
+const want = document.querySelector(`.order[data-id="${new URLSearchParams(location.search).get('order')}"]`) || document.querySelector('.order');
+want.querySelector('.tog').click();
+</script>
+{% endif %}
+{% endblock %}

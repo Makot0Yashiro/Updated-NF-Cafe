@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block mainclass %}wide{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+{% endblock %}
+{% block content %}
+{% include "admin_tabs.html" %}
+<h1>Manage Orders</h1>
+<p class="chips"><a href="{{ url_for('admin.orders_page') }}" class="{{ 'on' if not current and not pay_filter }}">All</a>
+<a href="{{ url_for('admin.orders_page', pay='pending') }}" class="{{ 'on' if pay_filter }}">Payments to confirm</a>
+{% for s in statuses %}<a href="{{ url_for('admin.orders_page', status=s) }}" class="{{ 'on' if current == s }}">{{ s }}</a>{% endfor %}</p>
+<div class="two">
+  <section>
+    {% for o in orders %}
+    <div class="card order" data-id="{{ o.id }}">
+      <div class="row"><h2>Order #{{ o.id }}</h2><span class="badge" data-status>{{ o.status }}</span></div>
+      <small>{{ o.customer }} · {{ o.when }} · {{ o.order_type }}</small>
+      <ul>{% for i in o['items'] %}<li>{{ i.qty }} × {{ i.name }}</li>{% endfor %}</ul>
+      {% if o.note %}<small>Note: {{ o.note }}</small>{% endif %}
+      {% if o.order_type == 'delivery' and o.address %}<p style="margin:.3rem 0">Deliver to: {{ o.address }}</p>{% endif %}
+      <div class="row"><span><b>{{ 'Online (QR)' if o.payment == 'online' else 'Cash' }}</b> <span class="pbadge" data-pay></span>{% if o.pay_ref %} <small>Ref: {{ o.pay_ref }}</small>{% endif %}</span>
+        <span><button class="btn small payok">Confirm payment</button> {% if o.payment == 'online' %}<button class="btn small ghost payno">Not received</button>{% endif %}</span></div>
+      <div class="row" style="margin-top:.8rem"><b>₱{{ '{:,.0f}'.format(o.total) }}</b>
+        <span style="display:flex;gap:.4rem;align-items:center">
+          <select class="stsel" style="margin:0;width:auto;padding:.4rem .8rem">{% for c in o.choices %}<option {{ 'selected' if c == o.status }}>{{ c }}</option>{% endfor %}</select>
+          <button class="btn small save">Update</button><button class="btn small ghost trk">Track</button></span></div>
+    </div>
+    {% else %}<p>No orders here yet.</p>{% endfor %}
+  </section>
+  <aside class="card dark sticky">
+    <h2 id="tt">Order tracking</h2>
+    <ol id="steps" class="steps"></ol>
+    <div id="map"></div>
+    <small id="mapnote">Choose an order and press Track.</small>
+  </aside>
+</div>
+<script>
+const cafe = {{ cafe|tojson }}, csrf = document.querySelector('meta[name=csrf]').content;
+const map = L.map('map').setView(cafe, 14); let sel = null, timer = null, courier = null, home = null;
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(map);
+L.marker(cafe).addTo(map).bindPopup('New Found Cafe');
+function show(o) {
+  document.getElementById('tt').textContent = 'Order #' + o.id + ' — ' + o.status;
+  const i = o.steps.indexOf(o.status);
+  document.getElementById('steps').innerHTML = o.steps.map((s, n) => `<li class="${n <= i ? 'done' : ''}">${s}</li>`).join('');
+  const card = document.querySelector(`.order[data-id="${o.id}"]`);
+  card.querySelector('[data-status]').textContent = o.status; card.querySelector('.stsel').value = o.status; paintPay(card, o);
+  const pos = [o.lat ?? cafe[0], o.lng ?? cafe[1]];
+  if (!courier) courier = L.circleMarker(pos, {radius: 9, color: '#43301f', fillColor: '#d4793f', fillOpacity: 1}).addTo(map);
+  courier.setLatLng(pos).bindTooltip('Order location');
+  if (home) { map.removeLayer(home); home = null; }
+  if (o.dest) home = L.marker(o.dest).addTo(map).bindPopup('Customer');
+  map.fitBounds(L.latLngBounds([pos, cafe].concat(o.dest ? [o.dest] : [])).pad(.3), {maxZoom: 16});
+  document.getElementById('mapnote').textContent = o.order_type === 'delivery' ? 'Marker moves once the order is "Out for delivery".' : 'Dine-in / takeaway order — at the cafe.';
+}
+async function poll() { const r = await fetch(`/admin/api/orders/${sel}/track`); if (r.ok) show(await r.json()); }
+function track(id) { sel = id; clearInterval(timer); poll(); timer = setInterval(poll, 5000); }
+const PAY = {unpaid: ['Unpaid', 'off'], pending: ['Awaiting confirmation', 'wait'], paid: ['Paid', 'ok'], rejected: ['Not received', 'bad']};
+function paintPay(c, o) {
+  const [t, k] = PAY[o.pay_status] || PAY.unpaid, b = c.querySelector('[data-pay]'); b.textContent = t; b.className = 'pbadge ' + k;
+  const ok = c.querySelector('.payok'); ok.hidden = o.pay_status === 'paid'; ok.textContent = o.payment === 'online' ? 'Confirm payment' : 'Mark as paid';
+  const no = c.querySelector('.payno'); if (no) no.hidden = o.pay_status === 'paid';
+}
+const byId = Object.fromEntries({{ orders|tojson }}.map(o => [o.id, o]));
+document.querySelectorAll('.order').forEach(c => {
+  const id = +c.dataset.id; paintPay(c, byId[id]);
+  const payAct = async action => {
+    const r = await fetch(`/admin/api/orders/${id}/payment`, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf}, body: JSON.stringify({action})});
+    if (r.ok) paintPay(c, await r.json()); else alert('Could not update the payment');
+  };
+  c.querySelector('.payok').onclick = () => payAct('confirm');
+  const no = c.querySelector('.payno'); if (no) no.onclick = () => payAct('reject');
+  c.querySelector('.trk').onclick = () => track(id);
+  c.querySelector('.save').onclick = async () => {
+    const r = await fetch(`/admin/api/orders/${id}/status`, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
+      body: JSON.stringify({status: c.querySelector('.stsel').value})});
+    if (r.ok) { const o = await r.json(); c.querySelector('[data-status]').textContent = o.status; if (sel === id) show(o); } else alert('Could not update status');
+  };
+});
+</script>
+{% endblock %}

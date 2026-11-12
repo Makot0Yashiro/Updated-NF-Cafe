@@ -1,0 +1,81 @@
+/* ===== New Found Cafe — gallery carousel =====
+   Edit the colours here. Everything else in this file is layout + animation. */
+.nf-gallery{
+  --nf-band:#43301f;      /* section background + wave colour */
+  --nf-text:#efe7d8;      /* text, arrows, cursor */
+  --nf-line:#b9a993;      /* decorative line + circle */
+  --nf-ease:cubic-bezier(.65,0,.35,1);
+  position:relative; overflow:hidden; background:var(--nf-band); color:var(--nf-text);
+  font-family:'Poppins',system-ui,sans-serif; font-weight:300;
+  padding:clamp(3.5rem,7vw,7rem) 0 clamp(3.5rem,7vw,7rem);
+}
+.nf-gallery *{box-sizing:border-box}
+
+/* heading block */
+.nf-gallery__head{text-align:center;padding:0 1.5rem;margin-bottom:clamp(1.5rem,3vw,3rem)}
+.nf-eyebrow{display:inline-flex;align-items:center;gap:.7rem;margin:0 0 1rem;font-size:.75rem;letter-spacing:.22em;text-transform:uppercase;color:var(--nf-line)}
+.nf-eyebrow i{display:block;width:2.8rem;height:1px;background:var(--nf-line)}
+.nf-eyebrow b{display:block;width:8px;height:8px;border:1px solid var(--nf-line);border-radius:50%}
+.nf-gallery__title{margin:0;font-family:'Forum',Georgia,serif;font-weight:400;text-transform:uppercase;letter-spacing:.03em;font-size:clamp(2rem,4.4vw,4rem);line-height:1.1;color:var(--nf-text)}
+.nf-gallery__hint{margin:1rem 0 0;font-size:.85rem;color:var(--nf-line)}
+
+/* slider */
+.nf-slider{position:relative}
+.nf-slider__inner{padding:0 clamp(1rem,4vw,4rem)}
+.nf-gallery .splide__track{overflow:visible}          /* neighbours peek in from the sides */
+.nf-gallery .splide__slide{height:clamp(300px,36vw,640px);overflow:hidden;transition:transform .8s var(--nf-ease)}
+.nf-gallery .splide__slide img{display:block;width:100%;height:100%;object-fit:cover;transition:transform 1.2s var(--nf-ease);user-select:none;-webkit-user-drag:none}
+.nf-gallery .splide__slide:hover img{transform:scale(1.06)}
+.nf-gallery .splide__slide:not(.is-active){transform:scale(.94)}   /* centre slide pops forward */
+
+/* curved wave edges (same shape as the T.RICKS slider) */
+.nf-wave{position:absolute;left:0;right:0;z-index:2;pointer-events:none;color:var(--nf-band);line-height:0}
+.nf-wave svg{display:block;width:100%;height:auto}
+.nf-wave--top{top:-1px;margin-top:-.4vw}
+.nf-wave--bottom{bottom:-1px;margin-bottom:-.4vw;transform:rotate(180deg)}
+
+/* round arrow buttons with the sliding fill */
+.nf-controls{position:absolute;left:50%;bottom:max(0px,calc(3.1vw - 28px));z-index:4;display:flex;gap:.9rem;transform:translateX(-50%)}
+.nf-control{position:relative;display:grid;place-items:center;width:3.5rem;height:3.5rem;padding:0;overflow:hidden;isolation:isolate;
+  border:2px solid var(--nf-text);border-radius:50%;background:var(--nf-band);color:var(--nf-text);cursor:pointer;
+  -webkit-mask-image:-webkit-radial-gradient(white,black);transition:transform .2s ease,color .35s ease}
+.nf-control:active{transform:scale(.9)}
+.nf-control__fill{position:absolute;inset:0;z-index:-1;border-radius:50%;background:var(--nf-text);transform:translate(100%,-100%);transition:transform .5s var(--nf-ease)}
+.nf-control:hover,.nf-control:focus-visible{color:var(--nf-band);outline:none}
+.nf-control:hover .nf-control__fill,.nf-control:focus-visible .nf-control__fill{transform:none}
+.nf-control svg{width:1.5rem;height:1.1rem}
+.nf-control--next svg{transform:rotate(180deg)}
+
+/* scroll-in reveal (only active when JS adds .nf-reveal-ready) */
+.nf-reveal-ready [data-nf-reveal]{opacity:0;transform:translateY(48px);transition:opacity .9s ease,transform 1.1s cubic-bezier(.16,1,.3,1);transition-delay:var(--d,0s)}
+.nf-reveal-ready [data-nf-reveal].is-in{opacity:1;transform:none}
+
+/* custom DRAG cursor (desktop mouse only; JS adds .nf-has-cursor) */
+.nf-cursor{position:fixed;left:0;top:0;width:0;height:0;z-index:1000;pointer-events:none;opacity:0;transition:opacity .2s ease}
+.nf-cursor span{position:absolute;left:0;top:0;display:grid;place-items:center;border-radius:50%;transform:translate(-50%,-50%)}
+.nf-cursor__dot{width:6px;height:6px;background:var(--nf-text);transition:width .35s ease,height .35s ease,opacity .35s ease,background-color .35s ease}
+.nf-cursor__ring{width:52px;height:52px;border:2px solid var(--nf-text);overflow:hidden;font-size:.8rem;letter-spacing:.14em;color:transparent;
+  transition:width .35s ease,height .35s ease,background-color .35s ease,color .35s ease,border-color .35s ease}
+.nf-has-cursor,.nf-has-cursor *{cursor:none!important}
+.nf-has-cursor.is-active .nf-cursor{opacity:1}
+.nf-has-cursor.is-drag .nf-cursor__ring{width:7.5rem;height:7.5rem;background:var(--nf-text);color:var(--nf-band);border-color:var(--nf-text)}
+.nf-has-cursor.is-drag .nf-cursor__dot{opacity:0}
+.nf-has-cursor.is-control .nf-cursor__dot{opacity:0}
+.nf-has-cursor.is-control .nf-cursor__ring{width:5.5rem;height:5.5rem;border-color:var(--nf-line)}
+.nf-has-cursor.is-down .nf-cursor span{transform:translate(-50%,-50%) scale(.8)}
+
+@media (max-width:767px){
+  .nf-gallery .splide__slide{height:min(110vw,520px)}
+  .nf-gallery .splide__slide:not(.is-active){transform:scale(.97)}
+  .nf-controls{bottom:.8rem}
+}
+@media (prefers-reduced-motion:reduce){
+  .nf-gallery *{transition:none!important}
+}
+
+/* photos are links to the menu */
+.nf-gallery .splide__slide a{display:block;width:100%;height:100%}
+
+/* "click 3 times" hint */
+.nf-toast{position:fixed;left:50%;bottom:2rem;z-index:1001;transform:translate(-50%,20px);opacity:0;pointer-events:none;padding:.7rem 1.4rem;border-radius:99px;background:var(--nf-text);color:var(--nf-band);font-size:.85rem;font-weight:500;letter-spacing:.04em;transition:opacity .3s ease,transform .3s ease}
+.nf-toast.is-on{opacity:1;transform:translate(-50%,0)}

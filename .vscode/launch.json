@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run New Found Cafe (Flask)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "flask",
+      "args": ["--app", "app", "run", "--debug"],
+      "jinja": true
+    }
+  ]
+}

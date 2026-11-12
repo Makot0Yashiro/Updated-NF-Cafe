@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html data-wf-page="67bcaa3190819435d319a787" data-wf-site="67bcaa3190819435d319a786" lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>New Found Cafe</title>
+  <meta name="description" content="Zesty Webflow template is highly suitable for creating websites for restaurants, bars, cafes, coffee bars, and market stalls selling food or drinks.">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="generator" content="Webflow">
+  <link rel="preconnect" href="https://cdn.prod.website-files.com" crossorigin="anonymous">
+
+  <!-- Main stylesheet from Webflow CDN -->
+  <link rel="stylesheet" type="text/css" href="https://cdn.prod.website-files.com/67bcaa3190819435d319a786/css/zesty-template.webflow.f6d9856a8.css">
+
+  <!-- Gallery carousel styles (Splide core + our own) -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/splide/splide-core.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/gallery.css') }}">
+
+  <!-- Custom navbar styling: lock line widths so they don't stretch -->
+  <style>
+    #w-node-_48420263-1c19-64e3-43a7-65cda815b4f5-a815b4f3,
+    #w-node-_48420263-1c19-64e3-43a7-65cda815b4ff-a815b4f3 {
+      display: flex;
+      align-items: center;
+    }
+    
+    #w-node-_48420263-1c19-64e3-43a7-65cda815b4f5-a815b4f3 .nav-line,
+    #w-node-_48420263-1c19-64e3-43a7-65cda815b4ff-a815b4f3 .nav-line {
+      flex: 0 0 auto;
+    }
+    
+    #w-node-_48420263-1c19-64e3-43a7-65cda815b4f5-a815b4f3 .line-horizontal,
+    #w-node-_48420263-1c19-64e3-43a7-65cda815b4ff-a815b4f3 .line-horizontal {
+      flex: 0 0 auto;
+      width: 33vw;
+      max-width: 620px;
+    }
+  </style>
+
+  <!-- Google Fonts: Forum + Poppins -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+  <link rel="stylesheet" media="all" href="https://fonts.googleapis.com/css?family=Forum:regular%7CPoppins:300,300italic,regular,italic,500,500italic,600,600italic,700,700italic">
+  
+  <script src="https://ajax.googleapis.com/ajax/libs/webfont/1.6.26/webfont.js"></script>
+  <script>
+    WebFont.load({
+      google: {
+        families: ["Forum:regular", "Poppins:300,300italic,regular,italic,500,500italic,600,600italic,700,700italic"]
+      }
+    });
+  </script>
+
+  <!-- Touch device detection -->
+  <script>
+    (function(o, c) {
+      var n = c.documentElement, t = " w-mod-";
+      n.className += t + "js";
+      if ("ontouchstart" in o || (o.DocumentTouch && c instanceof DocumentTouch)) {
+        n.className += t + "touch";
+      }
+    })(window, document);
+  </script>
+
+  <!-- Favicons -->
+  <link rel="shortcut icon" type="image/x-icon" href="https://cdn.prod.website-files.com/67bcaa3190819435d319a786/67bcaf8f3859ccc2646c82b5_Favicon.png">
+  <link rel="apple-touch-icon" href="https://cdn.prod.website-files.com/67bcaa3190819435d319a786/67bcaf94d4d05f99971ae9ce_Webclip.png">
+</head>
+
+<body>
+
+  <!-- ===== SECTION 1: HERO ===== -->
+  <div class="section-hero" data-w-id="c3429d9f-afd1-51d5-3dbd-60bcf698be1b">
+
+    <!-- NAVBAR -->
+    <div
+      class="navbar w-nav"
+      role="banner"
+      data-w-id="48420263-1c19-64e3-43a7-65cda815b4f3"
+      data-animation="default"
+      data-collapse="all"
+      data-duration="1000"
+      data-easing="ease-in-out-quint"
+      data-easing2="ease-in-out-quint"
+    >
+      <div class="w-layout-grid grid-navbar">
+        
+        <!-- Left decorative line -->
+        <div class="block-navbar" id="w-node-_48420263-1c19-64e3-43a7-65cda815b4f5-a815b4f3">
+          <div class="nav-line" data-w-id="48420263-1c19-64e3-43a7-65cda815b4f9">
+            <div class="circle"></div>
+            <div class="line-horizontal"></div>
+            <div class="circle"></div>
+          </div>
+        </div>
+
+        <!-- Menu button (centered) -->
+        <div class="block-navbar" id="w-node-_48420263-1c19-64e3-43a7-65cda815b4fd-a815b4f3" style="justify-content: center;">
+          <div class="nav-block-button" data-w-id="48420263-1c19-64e3-43a7-65cda815b504">
+            <div
+              class="menu-button w-nav-button"
+              role="button"
+              tabindex="0"
+              aria-label="menu"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              aria-controls="w-nav-overlay-0"
+            >
+              <div class="text-menu">Account</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right decorative line -->
+        <div class="block-navbar" id="w-node-_48420263-1c19-64e3-43a7-65cda815b4ff-a815b4f3">
+          <div class="nav-line" data-w-id="48420263-1c19-64e3-43a7-65cda815b500">
+            <div class="circle"></div>
+            <div class="line-horizontal"></div>
+            <div class="circle"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Overlay navigation menu (opens when Menu is clicked) -->
+      <nav class="nav-menu w-nav-menu" role="navigation">
+        <div class="w-layout-grid grid-menu">
+          
+          <div class="line" id="w-node-_48420263-1c19-64e3-43a7-65cda815b50a-a815b4f3">
+            <div class="circle"></div>
+            <div class="line-vertical"></div>
+            <div class="circle-large"></div>
+            <div class="circle"></div>
+          </div>
+
+          <div class="menu-links" id="w-node-_48420263-1c19-64e3-43a7-65cda815b50f-a815b4f3">
+            <div class="overflow-link">
+              <a href="{{ url_for('account.account') }}" class="nav-link w-nav-link">Account</a>
+            </div>
+            <div class="overflow-link">
+              <a href="{{ url_for('menu.menu') }}" class="nav-link w-nav-link">Menu</a>
+            </div>
+            <div class="overflow-link">
+              <a href="{{ url_for('orders.your_order') }}" class="nav-link w-nav-link">Your Order</a>
+            </div>
+          </div>
+
+          <div class="line" id="w-node-_48420263-1c19-64e3-43a7-65cda815b51f-a815b4f3">
+            <div class="circle"></div>
+            <div class="circle-large top-margin"></div>
+            <div class="line-vertical"></div>
+            <div class="circle"></div>
+          </div>
+
+          <div
+            class="menu-button-close w-nav-button"
+            role="button"
+            tabindex="0"
+            aria-label="menu"
+            aria-haspopup="menu"
+            aria-expanded="false"
+            aria-controls="w-nav-overlay-0"
+          >
+            <div class="text-menu">Close</div>
+          </div>
+
+        </div>
+      </nav>
+      <div class="w-nav-overlay" id="w-nav-overlay-0" data-wf-ignore=""></div>
+    </div>
+
+    <!-- HERO HEADLINE BLOCK -->
+    <div class="w-layout-grid grid-hero">
+      
+      <div class="line" id="w-node-_072b262a-8b2b-b26b-b2d6-fdb70a6317cd-d319a787" data-w-id="072b262a-8b2b-b26b-b2d6-fdb70a6317cd">
+        <div class="circle"></div>
+        <div class="line-vertical"></div>
+        <div class="circle-large"></div>
+        <div class="circle"></div>
+      </div>
+
+      <div class="block-hero" id="w-node-_4643285b-d2db-eb6b-7684-eee851871795-d319a787">
+        <h1 class="heading-hero" data-w-id="b486a2d2-b968-9aae-c631-58e19ca4ad73">
+          NEW FOUND CAFE
+        </h1>
+        <p class="paragraph-hero" data-w-id="de0539df-5eb8-b399-3b33-6afcef0a4bc2">
+          We use only the finest local ingredients available and offer seasonal specials throughout the year.
+        </p>
+        <a
+          class="button w-button"
+          href="{{ url_for('menu.menu') }}"
+          data-w-id="30461274-72bf-e5c6-b1e8-39aba3e2aeb3"
+        >
+          Order Now
+        </a>
+      </div>
+
+      <div class="line" id="w-node-_453068fd-74cf-44d8-263f-abd171130391-d319a787" data-w-id="453068fd-74cf-44d8-263f-abd171130391">
+        <div class="circle"></div>
+        <div class="circle-large top-margin"></div>
+        <div class="line-vertical"></div>
+        <div class="circle"></div>
+      </div>
+
+    </div>
+
+    <!-- Decorative gradient shape -->
+    <div class="shape" data-w-id="2125cdcc-0de2-9cea-b624-9e0d280451df">
+      <div class="image-shape"></div>
+    </div>
+
+  </div>
+
+  <!-- ===== SECTION: GALLERY CAROUSEL ===== -->
+  <!-- Photos come from the GALLERY list in cafe/blueprints/main.py. Colours/animation: static/css/gallery.css + static/js/gallery.js -->
+  <section id="nf-gallery" class="nf-gallery" aria-label="Photo gallery">
+    <div class="nf-gallery__head" data-nf-reveal>
+      <p class="nf-eyebrow"><i></i><b></b>Gallery</p>
+      <h2 class="nf-gallery__title">A taste of New Found Cafe</h2>
+      <p class="nf-gallery__hint">Drag, swipe or use the arrows · click a photo 3 times to open the menu</p>
+    </div>
+
+    <div class="nf-slider" data-nf-reveal style="--d:.15s">
+      <div class="nf-wave nf-wave--top" aria-hidden="true"><svg viewBox="0 0 804 50.167" preserveAspectRatio="none"><path fill="currentColor" d="M804,0v16.671c0,0-204.974,33.496-401.995,33.496C204.974,50.167,0,16.671,0,16.671V0H804z"/></svg></div>
+
+      <div class="nf-slider__inner">
+        <div id="nf-splide" class="splide" aria-label="New Found Cafe photos">
+          <div class="splide__track">
+            <ul class="splide__list">
+              {% for photo in gallery %}
+              <li class="splide__slide"><a href="{{ url_for('menu.menu') }}" data-nf-tap aria-label="Click 3 times to open our menu" draggable="false"><img src="{{ photo.src if photo.src.startswith('http') else url_for('static', filename='images/' ~ photo.src) }}" alt="{{ photo.alt }}" loading="lazy" draggable="false"></a></li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="nf-wave nf-wave--bottom" aria-hidden="true"><svg viewBox="0 0 804 50.167" preserveAspectRatio="none"><path fill="currentColor" d="M804,0v16.671c0,0-204.974,33.496-401.995,33.496C204.974,50.167,0,16.671,0,16.671V0H804z"/></svg></div>
+
+      <div class="nf-controls">
+        <button type="button" class="nf-control nf-control--prev" data-nf-prev aria-label="Previous photo"><span class="nf-control__fill"></span><svg viewBox="0 0 24 18" aria-hidden="true"><path d="M23 9H2M8 2 1.5 9 8 16" fill="none" stroke="currentColor" stroke-width="1.7"/></svg></button>
+        <button type="button" class="nf-control nf-control--next" data-nf-next aria-label="Next photo"><span class="nf-control__fill"></span><svg viewBox="0 0 24 18" aria-hidden="true"><path d="M23 9H2M8 2 1.5 9 8 16" fill="none" stroke="currentColor" stroke-width="1.7"/></svg></button>
+      </div>
+    </div>
+
+    <div class="nf-cursor" aria-hidden="true"><span class="nf-cursor__dot"></span><span class="nf-cursor__ring">DRAG</span></div>
+  </section>
+
+  <!-- ===== SECTION 2: ABOUT US ===== -->
+  <div id="about" class="section">
+    <div class="content">
+      <div class="w-layout-grid grid">
+
+        <!-- Left column: copy -->
+        <div class="block" id="w-node-_285f215a-84e3-4128-cc9b-3324c9022448-d319a787">
+          <div class="subtitle" data-w-id="20243c54-bc18-cdd1-c83f-891af0772ea8">
+            <div class="line-subtitle">
+              <div class="line-horizontal"></div>
+              <div class="circle"></div>
+            </div>
+            <div class="text-subtitle">About Us</div>
+          </div>
+
+          <h2 class="heading" data-w-id="c81b2beb-3661-1a77-15a7-d30b3f42bfd5">
+            NEW FOUND CAFE
+          </h2>
+
+          <p class="paragraph max-w-430" data-w-id="017228be-7ae0-c98f-f168-feb7b75789d7">
+            blah blah blah blah blah blah blah yap yap yapping 
+          </p>
+
+          <a
+            class="button-accent w-button"
+            href="#about"
+            data-w-id="33c4ed34-f10b-a193-0c61-6a13c82e2ea4"
+          >
+            More About Us
+          </a>
+        </div>
+
+        <!-- Right column: photo collage -->
+        <div class="image-block" id="w-node-_2ebd1465-9fe8-1a25-4355-ad7d9b6959b2-d319a787">
+          <div class="image-absolute" data-w-id="1e796dae-34ce-f893-aacb-b84e3530c992">
+            <img
+              class="image shadow"
+              alt=""
+              loading="eager"
+              data-w-id="bdd40a24-cd82-b63d-ee45-e901ac90a79d"
+              src="https://cdn.prod.website-files.com/67bcaa3190819435d319a786/67bcaa3190819435d319a7ab_5b949447b3128c62d2f78db825e3a7a1_img_1.avif"
+            >
+          </div>
+          <img
+            class="image"
+            alt=""
+            loading="eager"
+            sizes="90vw"
+            data-w-id="5d7fc65d-3292-7865-8af8-66616778065d"
+            src="https://cdn.prod.website-files.com/67bcaa3190819435d319a786/67bcaa3190819435d319a7b6_ddf378cd0b77da633bb6029bc60e671c_img_2.avif"
+            srcset="
+              https://cdn.prod.website-files.com/67bcaa3190819435d319a786/67bcaa3190819435d319a7b6_ddf378cd0b77da633bb6029bc60e671c_img_2-p-500.avif 500w,
+              https://cdn.prod.website-files.com/67bcaa3190819435d319a786/67bcaa3190819435d319a7b6_ddf378cd0b77da633bb6029bc60e671c_img_2.avif 730w
+            "
+          >
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== SECTION 3: OUR KITCHEN ===== -->
+  <div class="section background">
+    <div class="content">
+
+      <!-- Section divider -->
+      <div class="line-space" data-w-id="fd723886-bdff-9481-94af-4303036d23b2">
+        <div class="circle"></div>
+        <div class="line-horizontal"></div>
+        <div class="circle"></div>
+        <div class="circle-large center"></div>
+        <div class="circle"></div>
+        <div class="line-horizontal"></div>
+        <div class="circle"></div>
+      </div>
+
+      <div class="w-layout-grid grid-modular">
+
+        <!-- Left column: heading -->
+        <div class="block-modular" id="w-node-_96c5ff3d-3717-6b45-3c11-fab87cee9a7a-d319a787">
+          <div class="subtitle" data-w-id="742dda44-b275-1a43-cf9b-75eb22721158">
+            <div class="line-subtitle">
+              <div class="line-horizontal"></div>
+              <div class="circle"></div>
+            </div>
+            <div class="text-subtitle">Our Location</div>
+          </div>
+
+          <h2 class="heading" data-w-id="dc5eee87-38f5-6e2e-67a1-288f23697b04">
+            Our cafe is located in the heart of the city
+          </h2>
+        </div>
+
+        <!-- Center column: copy -->
+        <div class="block-modular" id="w-node-_556ced9a-efb0-bb0c-c35d-f44945193d3c-d319a787">
+          <p class="paragraph" data-w-id="a0056135-517f-f72f-7e9f-ec23edcbaea4">
+            Address: 7CP7+HH9, Pedro Guevara Ave, Santa Cruz, Laguna
+          </p>
+          <a
+            class="button-accent w-button"
+            href="{{ url_for('menu.menu') }}"
+            data-w-id="3ffd5eef-a94b-6ba2-ef85-750d89897b4d"
+          >
+            VISIT US
+          </a>
+        </div>
+
+        <!-- Right column: photo collage -->
+        <div class="image-block-modular" id="w-node-_666ae713-24b7-f6fe-2098-74254afba9ce-d319a787">
+          <img
+            class="image-modular"
+            alt=""
+            loading="eager"
+            data-w-id="b42a83fe-f8bf-a900-c0ad-d6ee1758a54c"
+            src="https://cdn.prod.website-files.com/67bcaa3190819435d319a786/67bcaa3190819435d319a7ac_c79e17c6934830315efcef3f223e9e15_img_4.avif"
+          >
+          <div class="image-modular-absolute" data-w-id="694d827e-34d4-f935-ee43-2bd3bf75b2f9">
+            <img
+              class="image shadow"
+              alt=""
+              loading="eager"
+              data-w-id="00d863c4-1cce-dbf6-a8f3-29dc5b9ccfc0"
+              src="https://cdn.prod.website-files.com/67bcaa3190819435d319a786/67bcaa3190819435d319a7ad_82fb3915470160aabb14d005afd9f98c_img_3.avif"
+            >
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Navigation and Animation -->
+  <script
+    src="https://d3e54v103j8qbb.cloudfront.net/js/jquery-3.5.1.min.dc5e7f18c8.js?site=67bcaa3190819435d319a786"
+    integrity="sha256-9/aliU8dGd2tb6OSsuzixeV4y/faTqgFtohetphbbj0="
+    crossorigin="anonymous"
+  ></script>
+  <script src="https://cdn.prod.website-files.com/67bcaa3190819435d319a786/js/webflow.9531802c.4714780de10179a9.js"></script>
+
+
+  <!-- Gallery carousel scripts -->
+  <script src="{{ url_for('static', filename='vendor/splide/splide.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/gallery.js') }}"></script>
+
+  <!-- Make the page links always navigate, and reset the menu overlay when the browser restores this page via Back -->
+  <script>
+  (function () {
+    document.addEventListener('click', function (e) {
+      var a = e.target.closest && e.target.closest('a[href^="/"]');
+      if (!a || a.hasAttribute('data-nf-tap')) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      window.location.href = a.getAttribute('href');
+    }, true);
+    window.addEventListener('pageshow', function (e) {
+      var nav = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+      if (e.persisted || (nav && nav.type === 'back_forward')) window.location.reload();
+    });
+  })();
+  </script>
+
+</body>
+</html>

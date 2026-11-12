@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block mainclass %}wide{% endblock %}
+{% macro chart(title, rows) %}
+<div class="card"><h2>{{ title }}</h2>
+  {% for b in rows %}<div class="hbar"><span class="l">{{ b.label }}</span><span class="track"><i style="width:{{ b.pct }}%"></i></span><span class="v">₱{{ '{:,.0f}'.format(b.value) }}{% if b.sub %} <small>· {{ b.sub }}</small>{% endif %}</span></div>
+  {% else %}<small>No sales yet.</small>{% endfor %}
+</div>
+{% endmacro %}
+{% block content %}
+{% include "admin_tabs.html" %}
+<h1>Sales Analytics</h1>
+<div class="kpis">
+  <div class="kpi"><small>Total sales</small><b>₱{{ '{:,.0f}'.format(kpi.sales) }}</b></div>
+  <div class="kpi"><small>Today</small><b>₱{{ '{:,.0f}'.format(kpi.today) }}</b></div>
+  <div class="kpi"><small>Orders</small><b>{{ kpi.orders }}</b></div>
+  <div class="kpi"><small>Average order</small><b>₱{{ '{:,.0f}'.format(kpi.avg) }}</b></div>
+  <div class="kpi"><small>Payments to confirm</small><b><a href="{{ url_for('admin.orders_page', pay='pending') }}">{{ kpi.topay }}</a></b></div>
+  <div class="kpi"><small>Active orders</small><b><a href="{{ url_for('admin.orders_page') }}">{{ kpi.active }}</a></b></div>
+</div>
+<div class="card"><h2>Sales — last 14 days</h2>
+  <div class="vbars">{% for b in daily %}<div class="vb" title="₱{{ '{:,.0f}'.format(b.value) }}"><em>{{ '{:,.0f}'.format(b.value) if b.value else '' }}</em><i style="height:{{ b.pct }}%"></i><span>{{ b.label }}</span></div>{% endfor %}</div>
+</div>
+<div class="two even">
+  {{ chart('Best sellers', top) }}
+  {{ chart('Sales by category', cats) }}
+  {{ chart('Payment methods', pay) }}
+  {{ chart('Order types', typ) }}
+</div>
+<div class="card"><h2>Orders by status</h2>
+  {% for s, n in status.items() %}<a class="badge" style="margin-right:.4rem;text-decoration:none" href="{{ url_for('admin.orders_page', status=s) }}">{{ s }} · {{ n }}</a>{% else %}<small>No orders yet.</small>{% endfor %}
+</div>
+<small>Totals exclude cancelled orders. Category and best-seller figures are before coupon discounts.</small>
+{% endblock %}

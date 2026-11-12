@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block mainclass %}wide{% endblock %}
+{% set layers %}<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3 2 8l10 5 10-5-10-5zm0 12.2-7.5-3.7L2 12.8l10 5 10-5-2.5-1.3-7.5 3.7z"/></svg>{% endset %}
+{% block content %}
+<div class="pos">
+  <section>
+    <div class="pos-head">
+      <h2>Menu</h2>
+      <label class="search" style="margin:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="q" type="search" placeholder="Search items" autocomplete="off"></label>
+    </div>
+    <div class="cats">
+      <button class="ctile on" data-cat="all" style="--c:#43301f">{{ layers }}<span><b>All items</b><small id="allcount"></small></span></button>
+      {% for g in groups %}{% for c in g.cats %}
+      <button class="ctile" data-cat="{{ c.id }}" style="--c:{{ c.color }}"><em>{{ g.name }}</em>{{ layers }}<span><b>{{ c.name }}</b><small>{{ c['items']|length }} items</small></span></button>
+      {% endfor %}{% endfor %}
+    </div>
+    <p class="label"><span id="curlabel">All items</span><span id="curcount"></span></p>
+    <div class="items">
+      {% for g in groups %}{% for c in g.cats %}{% for i in c['items'] %}
+      <button class="tile" data-cat="{{ c.id }}" data-id="{{ i.id }}" data-name="{{ i.name }}" data-price="{{ i.price }}" data-e="{{ c.emoji }}" style="--c:{{ c.color }}">
+        <img src="{{ i.img }}" alt="" loading="lazy" onerror="this.style.display='none'">
+        <span class="q">0</span><span class="txt"><b>{{ i.name }}</b><span>₱{{ i.price }}</span></span>
+      </button>
+      {% endfor %}{% endfor %}{% endfor %}
+      <p class="empty" id="none" hidden>No items match your search.</p>
+    </div>
+  </section>
+
+  <aside class="check">
+    <div class="check-top"><h2>New order</h2><span class="badge" id="cnt">0 items</span></div>
+    <div class="ptabs"><button class="on" data-tab="check">Check</button><button data-tab="details">Details</button></div>
+    <div id="tab-check">
+      <div class="box" id="cart"></div>
+      <div class="box">
+        <div class="trow"><span>Subtotal</span><span>₱<span id="sub">0</span></span></div>
+        <div class="trow" id="disc" hidden><span>Discount <small id="dcode"></small></span><span>−₱<span id="dval">0</span></span></div>
+        <div class="trow t"><span>Total</span><span>₱<span id="total">0</span></span></div>
+      </div>
+      <div class="seg" role="group" aria-label="Payment method"><button type="button" data-pay="cash">Cash</button><button type="button" data-pay="online">Online (QR)</button></div>
+      <div class="qr" id="qr" hidden>
+        <p>Scan with GCash or any InstaPay-enabled app and pay <b>₱<span id="payamt">0</span></b></p>
+        <a href="{{ url_for('static', filename='images/gcash-qr.png') }}" target="_blank" rel="noopener"><img src="{{ url_for('static', filename='images/gcash-qr.png') }}" alt="GCash InstaPay QR code"></a>
+        <label>Reference no. from your receipt<input id="ref" maxlength="40" autocomplete="off" placeholder="e.g. 1234 567 890123"></label>
+        <small>The cafe confirms your payment, then you'll see it on Your Order.</small>
+      </div>
+    </div>
+    <div id="tab-details" hidden>
+      <label>Order type
+        <select id="otype"><option value="dine-in">Dine-in</option><option value="pickup">Pickup</option><option value="delivery">Delivery</option></select></label>
+      <label id="addrlbl" hidden>Delivery address<input id="addr" maxlength="200" placeholder="House no., street, barangay"></label>
+      <label>Coupon<input id="coupon" placeholder="WELCOME10"></label>
+      <label>Note<input id="note" maxlength="200"></label>
+    </div>
+    <button class="btn full pay" id="place">Place order</button>
+    <p id="err" class="flash" style="margin-top:1rem" hidden></p>
+  </aside>
+</div>
+<script>
+const me = {{ me|tojson }}, coupons = {{ coupons|tojson }}, cart = {}, $ = id => document.getElementById(id);
+const tiles = [...document.querySelectorAll('.tile')];
+let cat = 'all';
+let pay = me.pay_method === 'cash' ? 'cash' : 'online';
+$('addr').value = me.address;
+$('allcount').textContent = tiles.length + ' items';
+
+/* category tiles + search isolate what you see */
+function filter() {
+  const q = $('q').value.trim().toLowerCase(); let n = 0;
+  tiles.forEach(t => { const show = (cat === 'all' || t.dataset.cat === cat) && t.dataset.name.toLowerCase().includes(q); t.hidden = !show; n += show; });
+  $('none').hidden = n > 0; $('curcount').textContent = n + ' items';
+}
+document.querySelectorAll('.ctile').forEach(b => b.onclick = () => {
+  cat = b.dataset.cat;
+  document.querySelectorAll('.ctile').forEach(x => x.classList.toggle('on', x === b));
+  $('curlabel').textContent = b.querySelector('b').textContent; filter();
+});
+$('q').oninput = filter; filter();
+
+/* tabs */
+document.querySelectorAll('.ptabs button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.ptabs button').forEach(x => x.classList.toggle('on', x === b));
+  $('tab-check').hidden = b.dataset.tab !== 'check'; $('tab-details').hidden = b.dataset.tab !== 'details';
+});
+
+/* cart */
+const money = n => (Math.round(n * 100) / 100).toLocaleString('en-PH');
+function draw() {
+  const ids = Object.keys(cart); let sub = 0, n = 0;
+  $('cart').innerHTML = ids.length ? '' : '<p style="opacity:.7;padding:.6rem 0;margin:0">Tap an item to add it.</p>';
+  ids.forEach(id => { const c = cart[id]; sub += c.price * c.qty; n += c.qty;
+    const d = document.createElement('div'); d.className = 'line';
+    d.innerHTML = `<b></b><span>₱${money(c.price * c.qty)}</span><span class="stp"><button aria-label="Less">−</button>${c.qty}<button aria-label="More">+</button></span>`;
+    d.querySelector('b').textContent = c.name;
+    const [less, more] = d.querySelectorAll('button');
+    less.onclick = () => { if (--c.qty <= 0) delete cart[id]; draw(); }; more.onclick = () => { c.qty++; draw(); };
+    $('cart').appendChild(d); });
+  const rate = coupons[$('coupon').value.trim().toUpperCase()] || 0, off = Math.round(sub * rate * 100) / 100;
+  $('sub').textContent = money(sub); $('total').textContent = money(sub - off); $('dval').textContent = money(off);
+  $('disc').hidden = !off; $('dcode').textContent = off ? '(' + $('coupon').value.trim().toUpperCase() + ')' : '';
+  $('cnt').textContent = n + (n === 1 ? ' item' : ' items'); $('place').textContent = n ? 'Place order · ₱' + money(sub - off) : 'Place order';
+  $('payamt').textContent = money(sub - off);
+  tiles.forEach(t => { const q = cart[t.dataset.id]?.qty || 0; t.classList.toggle('has', q > 0); t.querySelector('.q').textContent = q; });
+}
+tiles.forEach(t => t.onclick = () => { (cart[t.dataset.id] ||= {name: t.dataset.name, price: +t.dataset.price, qty: 0}).qty++; draw(); });
+$('coupon').oninput = draw; draw();
+$('otype').onchange = () => { $('addrlbl').hidden = $('otype').value !== 'delivery'; };
+function setPay(p) { pay = p; document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.pay === p)); $('qr').hidden = p !== 'online'; }
+document.querySelectorAll('.seg button').forEach(b => b.onclick = () => setPay(b.dataset.pay)); setPay(pay);
+
+/* place order */
+const getPos = () => me.lat != null ? Promise.resolve({dest_lat: me.lat, dest_lng: me.lng}) :
+  new Promise(res => navigator.geolocation ? navigator.geolocation.getCurrentPosition(
+    p => res({dest_lat: p.coords.latitude, dest_lng: p.coords.longitude}), () => res({}), {timeout: 6000}) : res({}));
+const fail = msg => { $('err').hidden = false; $('err').textContent = msg; };
+$('place').onclick = async () => {
+  const items = Object.entries(cart).map(([id, c]) => ({id, qty: c.qty}));
+  const body = {items, order_type: $('otype').value, payment: pay, ref: $('ref').value, coupon: $('coupon').value, note: $('note').value, address: $('addr').value};
+  if (pay === 'online' && body.ref.trim().length < 4) return fail('Scan the QR to pay, then enter the reference number from your receipt.');
+  if (body.order_type === 'delivery') {
+    if (!body.address.trim()) return fail('Please enter your delivery address.');
+    Object.assign(body, await getPos());
+  }
+  const r = await fetch('/api/orders', {method: 'POST', headers: {'Content-Type': 'application/json',
+    'X-CSRFToken': document.querySelector('meta[name=csrf]').content}, body: JSON.stringify(body)});
+  const j = await r.json();
+  if (r.ok) location.href = '/your-order?order=' + j.id; else fail(j.error || 'Could not place order');
+};
+</script>
+{% endblock %}
