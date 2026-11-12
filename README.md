@@ -72,13 +72,25 @@ destination. Order history/tracking lives on **Your Order** (`/your-order`). Onl
   accounts, and `/admin` pages show "not found" to anyone who isn't an admin.
 - Default admin: **admin@newfoundcafe.com / admin123**, created on first run. Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` before the first run
   to choose your own. Any user can be made admin with `UPDATE users SET is_admin=1 WHERE email='...'`.
-- Admins can only use **Analytics** (`/admin`) and **Orders** (`/admin/orders`): they can't open the menu, account or your-order pages or place orders.
+- Admins can only use **Analytics** (`/admin`), **Orders** (`/admin/orders`), **Inventory** (`/admin/inventory`) and **Menu items**
+  (`/admin/menu-items`): they can't open the menu, account or your-order pages or place orders.
 - `/admin` = sales analytics; `/admin/orders` = change status (customers see it instantly), filter, and track orders on a Leaflet map.
 - Code: `cafe/blueprints/admin.py`, `auth.py`, templates `admin_*.html`.
 
-## Menu
-Categories, colours, prices and photos live in `cafe/menu_data.py`. Photos are placeholders from loremflickr.com (keyword-based stock
-photos) - replace with your own by putting files in `cafe/static/images/` and setting `img` to `/static/images/<file>`.
+## Menu and inventory
+The menu lives in the database and is managed by the admin:
+- **Admin -> Menu items** (`/admin/menu-items`): add, edit, hide or delete items (name, category, price, photo URL). Every item needs at least
+  one ingredient with the amount used per serving. **Manage categories** adds or edits categories and the group they appear under (Food, Beverages, ...).
+- **Admin -> Inventory** (`/admin/inventory`): ingredients, stock levels, low-stock alerts and restocking.
+- Placing an order takes its ingredients out of stock (all or nothing; an order that needs more than is left is refused with a message).
+  An item whose ingredients can't cover one serving shows as **Sold out** on the menu.
+- Cancelling an order (or pressing *Not received* on its payment) while it is still **Received** puts the ingredients back. From
+  *Preparing* on, the food is assumed made and the stock stays used. Re-opening the order takes the ingredients out again.
+- The first time the app runs it loads a starter menu and ingredient list from `cafe/inventory_seed.py` (only once). Coupons and the cafe
+  location are still in `cafe/menu_data.py`.
+- Photos are placeholders from loremflickr.com - use your own by putting files in `cafe/static/images/` and setting the item's image URL to
+  `/static/images/<file>`.
+- Code: `cafe/catalog.py` (reading the menu), `cafe/stock.py` (stock changes), `cafe/blueprints/inventory.py` (admin pages + JSON API).
 The landing-page carousel needs 3 clicks on the same photo to open the menu (`cafe/static/js/gallery.js`).
 
 ## Database: MySQL (file: `database/nf_cafe.sql`)
@@ -86,7 +98,7 @@ The database lives in its own file, `database/nf_cafe.sql`, and the website conn
 package (`mysql-connector-python`, code in `cafe/db.py`).
 1. Install **MySQL Server** + **MySQL Workbench**. Open Workbench, connect to your local server.
 2. In Workbench: **File -> Open SQL Script...** -> choose `database/nf_cafe.sql` -> press the lightning bolt. This creates the `nf_cafe`
-   database, the `users` and `orders` tables, and a starter admin account. (Safe to run again; it never deletes data.)
+   database, the `users`, `orders`, menu and inventory tables, and a starter admin account. (Safe to run again; it never deletes data.)
 3. In VS Code open the project folder, put your MySQL password in `cafe/config.py` (same user/password as your Workbench connection).
 4. Terminal: `pip install -r requirements.txt`, then run `python app.py` (or press F5 - there is a ready-made launch configuration).
 5. Back in Workbench: refresh Schemas -> `nf_cafe` -> Tables -> right-click `orders` -> *Select Rows* to see live data.

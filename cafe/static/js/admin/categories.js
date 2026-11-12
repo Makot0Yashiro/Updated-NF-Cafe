@@ -1,5 +1,5 @@
 /* Admin › Menu items › "Manage categories" dialog, plus the grouping helper the page uses for chips and the dropdown. */
-import {$, esc, write, toast} from './api.js';
+import {$, esc, api, toast} from './api.js';
 
 const API = '/admin/api/categories';
 const plural = n => `${n} item${n === 1 ? '' : 's'}`;
@@ -63,7 +63,7 @@ export function initCategories({getCats, getItems, onChange}) {
     if (n) return err(`Move or delete the ${plural(n)} in ${c.name} first.`);
     if (!confirm(`Delete the ${c.name} category?`)) return;
     try {
-      await write('DELETE', `${API}/${encodeURIComponent(c.id)}`);
+      await api('DELETE', `${API}/${encodeURIComponent(c.id)}`);
       onChange(getCats().filter(x => x.id !== c.id));
       toast('Category deleted'); if (editing === c.id) resetForm(); else { err(); renderList(); }
     } catch (ex) { err(ex.message); }
@@ -83,7 +83,7 @@ export function initCategories({getCats, getItems, onChange}) {
     if (!body.group) return err('Pick a group or type a new one.');
     if (!body.emoji || [...body.emoji].length > 4) return err('Add an emoji (up to 4 characters).');
     try {
-      const saved = editing ? await write('PUT', `${API}/${encodeURIComponent(editing)}`, body) : await write('POST', API, body);
+      const saved = editing ? await api('PUT', `${API}/${encodeURIComponent(editing)}`, body) : await api('POST', API, body);
       onChange(editing ? getCats().map(c => c.id === editing ? saved : c) : [...getCats(), saved]);
       toast(editing ? 'Category updated' : 'Category added'); resetForm();
     } catch (ex) { err(ex.message); }

@@ -1,5 +1,5 @@
 /* Admin › Inventory: list, add, edit, restock and delete ingredients. */
-import {$, esc, qty, load, write, toast, stockState} from './api.js';
+import {$, esc, qty, api, toast, stockState} from './api.js';
 import {createDock} from './dock.js';
 
 const API = '/admin/api/ingredients';
@@ -75,7 +75,7 @@ form.onsubmit = async e => {
   if (list.some(i => i.id !== editing && i.name.toLowerCase() === body.name.toLowerCase())) return ferr('An ingredient with that name already exists.');
   body.stock = +body.stock; body.low_at = +body.low_at;
   try {
-    const saved = editing ? await write('PUT', `${API}/${editing}`, body) : await write('POST', API, body);
+    const saved = editing ? await api('PUT', `${API}/${editing}`, body) : await api('POST', API, body);
     list = editing ? list.map(i => i.id === saved.id ? saved : i) : [...list, saved].sort((a, b) => a.name.localeCompare(b.name));
     toast(editing ? 'Ingredient updated' : 'Ingredient added'); resetForm();
   } catch (err) { ferr(err.message); }
@@ -100,7 +100,7 @@ $('rs-form').onsubmit = async e => {
   const amount = +$('rs-amt').value;
   if (!(amount > 0)) return rsErr('Enter an amount greater than 0.');
   try {
-    const saved = await write('POST', `${API}/${restocking.id}/restock`, {amount});
+    const saved = await api('POST', `${API}/${restocking.id}/restock`, {amount});
     list = list.map(i => i.id === saved.id ? saved : i);
     dlg.close(); toast(`Added ${qty(amount)} ${saved.unit} of ${saved.name}`); render();
   } catch (err) { rsErr(err.message); }
@@ -111,7 +111,7 @@ async function remove(i) {
   if (i.used_in.length) return toast(`${i.name} is used in ${i.used_in.join(', ')}. Remove it from those items first.`, 'bad');
   if (!confirm(`Delete ${i.name}? This can't be undone.`)) return;
   try {
-    await write('DELETE', `${API}/${i.id}`);
+    await api('DELETE', `${API}/${i.id}`);
     list = list.filter(x => x.id !== i.id);
     if (editing === i.id) resetForm(); else render();
     toast('Ingredient deleted');
@@ -119,5 +119,5 @@ async function remove(i) {
 }
 
 /* ---------- start ---------- */
-try { list = await load(API, 'ingredients'); render(); }
+try { list = await api('GET', API); render(); }
 catch (err) { $('rows').innerHTML = `<p class="note">Couldn't load ingredients: ${esc(err.message)}</p>`; }

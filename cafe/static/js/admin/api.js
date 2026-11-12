@@ -21,27 +21,6 @@ export async function api(method, url, body) {
   return data;
 }
 
-/* ===== PREVIEW MODE (remove with preview_data.js once the backend API exists) =====
-   While the API answers 404, pages render sample data and every write is refused. */
-export let preview = false;
-export async function load(url, previewKey) {
-  try { return await api('GET', url); }
-  catch (e) {
-    if (e.status !== 404) throw e;
-    preview = true;
-    const banner = $('preview');
-    banner.hidden = false;
-    banner.textContent = 'Preview: showing sample data because the inventory backend isn’t connected yet. Changes are not saved.';
-    return (await import('./preview_data.js'))[previewKey]();
-  }
-}
-/** Use for every write. In preview mode it refuses instead of calling the missing API. */
-export function write(method, url, body) {
-  if (preview) return Promise.reject(new ApiError('Preview only: saving works once the backend is connected.', 0));
-  return api(method, url, body);
-}
-/* ===== END PREVIEW MODE ===== */
-
 /** Short status message in the corner. kind: 'ok' | 'bad' */
 export function toast(msg, kind = 'ok') {
   let t = $('toast');

@@ -4,7 +4,8 @@ from functools import wraps
 from flask import Blueprint, render_template, request, jsonify, session, abort, redirect, url_for
 from ..db import get_db
 from ..auth_utils import check_csrf
-from ..menu_data import ITEMS, CAFE_LOCATION
+from ..menu_data import CAFE_LOCATION
+from ..stock import OutOfStock
 from .orders import refresh, public_order, set_status, set_payment, stages
 import json
 
@@ -49,7 +50,7 @@ def dashboard():
         pay[r["payment"]] += r["total"]; typ[r["order_type"]] += r["total"]
         for l in json.loads(r["items_json"]):
             qty[l["name"]] += l["qty"]; rev[l["name"]] += l["qty"] * l["price"]
-            cats[ITEMS.get(l["id"], {}).get("cat", l.get("cat", "Other"))] += l["qty"] * l["price"]
+            cats[l.get("cat") or "Other"] += l["qty"] * l["price"]
     days = [today - timedelta(days=n) for n in range(13, -1, -1)]
     return render_template("admin_dashboard.html", kpi=kpi, page="dash",
         daily=bars([(d.strftime("%b %d"), per_day[d]) for d in days]),
@@ -89,7 +90,10 @@ def track(order_id):
 @admin_required
 def update_status(order_id):
     check_csrf()
-    r = set_status(order_id, (request.get_json(silent=True) or {}).get("status"))
+    try:
+        r = set_status(order_id, (request.get_json(silent=True) or {}).get("status"))
+    except OutOfStock as e:
+        return jsonify(error=str(e)), 409
     return jsonify(public_order(r)) if r else (jsonify(error="Invalid status"), 400)
 
 
@@ -98,5 +102,8 @@ def update_status(order_id):
 def update_payment(order_id):
     check_csrf()
     action = (request.get_json(silent=True) or {}).get("action")
-    r = set_payment(order_id, {"confirm": "paid", "reject": "rejected"}.get(action))
+    try:
+        r = set_payment(order_id, {"confirm": "paid", "reject": "rejected"}.get(action))
+    except OutOfStock as e:
+        return jsonify(error=str(e)), 409
     return jsonify(public_order(r)) if r else (jsonify(error="Invalid payment action"), 400)

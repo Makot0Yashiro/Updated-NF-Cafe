@@ -67,7 +67,7 @@ document.querySelectorAll('.order').forEach(c => {
   const id = +c.dataset.id; paintPay(c, byId[id]);
   const payAct = async action => {
     const r = await fetch(`/admin/api/orders/${id}/payment`, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf}, body: JSON.stringify({action})});
-    if (r.ok) paintPay(c, await r.json()); else alert('Could not update the payment');
+    if (r.ok) paintPay(c, await r.json()); else alert((await r.json().catch(() => ({}))).error || 'Could not update the payment');
   };
   c.querySelector('.payok').onclick = () => payAct('confirm');
   const no = c.querySelector('.payno'); if (no) no.onclick = () => payAct('reject');
@@ -75,7 +75,7 @@ document.querySelectorAll('.order').forEach(c => {
   c.querySelector('.save').onclick = async () => {
     const r = await fetch(`/admin/api/orders/${id}/status`, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
       body: JSON.stringify({status: c.querySelector('.stsel').value})});
-    if (r.ok) { const o = await r.json(); c.querySelector('[data-status]').textContent = o.status; if (sel === id) show(o); } else alert('Could not update status');
+    if (r.ok) { const o = await r.json(); c.querySelector('[data-status]').textContent = o.status; if (sel === id) show(o); } else alert((await r.json().catch(() => ({}))).error || 'Could not update status');
   };
 });
 </script>

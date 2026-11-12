@@ -1,5 +1,5 @@
 /* Admin › Menu items: list, add, edit and delete menu items with their ingredients (at least one is required). */
-import {$, esc, qty, peso, load, write, toast, servings} from './api.js';
+import {$, esc, qty, peso, api, toast, servings} from './api.js';
 import {createDock} from './dock.js';
 import {grouped, initCategories} from './categories.js';
 
@@ -150,7 +150,7 @@ form.onsubmit = async e => {
   e.preventDefault();
   const [body, err] = readForm(); if (err) return ferr(err);
   try {
-    const saved = editing ? await write('PUT', `${API}/${encodeURIComponent(editing)}`, body) : await write('POST', API, body);
+    const saved = editing ? await api('PUT', `${API}/${encodeURIComponent(editing)}`, body) : await api('POST', API, body);
     items = editing ? items.map(it => it.id === editing ? saved : it) : [...items, saved];
     toast(editing ? 'Menu item updated' : 'Menu item added'); resetForm(); renderFilters();
   } catch (ex) { ferr(ex.message); }
@@ -160,7 +160,7 @@ $('delete').onclick = async () => {
   const it = items.find(x => x.id === editing);
   if (!it || !confirm(`Delete ${it.name} from the menu? Past orders keep their record.`)) return;
   try {
-    await write('DELETE', `${API}/${encodeURIComponent(it.id)}`);
+    await api('DELETE', `${API}/${encodeURIComponent(it.id)}`);
     items = items.filter(x => x.id !== it.id); toast('Menu item deleted'); resetForm(); renderFilters();
   } catch (ex) { ferr(ex.message); }
 };
@@ -171,7 +171,7 @@ $('manage-cats').onclick = () => catDialog.open();
 
 /* ---------- start ---------- */
 try {
-  ({categories: cats, items, ingredients: ings} = await load(API, 'menuItems'));
+  ({categories: cats, items, ingredients: ings} = await api('GET', API));
   ingById = Object.fromEntries(ings.map(i => [String(i.id), i]));
   syncRows(); syncCategories();
 } catch (ex) { $('grid').innerHTML = `<p class="note">Couldn't load menu items: ${esc(ex.message)}</p>`; }

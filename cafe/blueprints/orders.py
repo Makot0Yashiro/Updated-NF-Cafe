@@ -3,7 +3,9 @@ from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify, session, render_template, abort
 from ..db import get_db
 from ..auth_utils import login_required, check_csrf
-from ..menu_data import ITEMS, COUPONS, CAFE_LOCATION
+from ..menu_data import COUPONS, CAFE_LOCATION
+from .. import catalog
+from ..stock import take_for_order, on_order_change, OutOfStock
 
 bp = Blueprint("orders", __name__)
 TRIP_SECONDS = 120   # how long the courier marker takes to move from the cafe to the customer (demo animation)
@@ -41,25 +43,38 @@ def refresh(row):
     return row
 
 
-def set_status(order_id, status):
-    """Used by the admin. Returns the updated row, or None if the status is not valid for that order."""
+def _change_order(order_id, status=None, pay_status=None):
+    """Save a status or payment change together with its stock effect (stock.on_order_change), in one transaction.
+    Returns the updated row, None if the change isn't valid, and raises OutOfStock if reopening the order needs stock that's gone."""
     db = get_db()
-    row = db.execute("SELECT * FROM orders WHERE id=?", (order_id,)).fetchone()
-    if not row or status not in stages(row["order_type"]) + ["Cancelled"]:
+    db.commit()                                   # start a fresh transaction so FOR UPDATE sees the latest row
+    row = db.execute("SELECT * FROM orders WHERE id=? FOR UPDATE", (order_id,)).fetchone()
+    if not row or (status is not None and status not in stages(row["order_type"]) + ["Cancelled"]) or \
+            (pay_status is not None and pay_status not in ("paid", "rejected")):
+        db.rollback()
         return None
-    db.execute("UPDATE orders SET status=?, status_at=? WHERE id=?", (status, now().isoformat(), order_id))
-    db.commit()
-    return refresh(db.execute("SELECT * FROM orders WHERE id=?", (order_id,)).fetchone())
+    try:
+        returned = on_order_change(db, row, status or row["status"], pay_status or row["pay_status"])
+        if status is not None:
+            db.execute("UPDATE orders SET status=?, status_at=?, stock_returned=? WHERE id=?", (status, now().isoformat(), returned, order_id))
+        else:
+            db.execute("UPDATE orders SET pay_status=?, pay_at=?, stock_returned=? WHERE id=?", (pay_status, now().isoformat(), returned, order_id))
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return db.execute("SELECT * FROM orders WHERE id=?", (order_id,)).fetchone()
+
+
+def set_status(order_id, status):
+    """Used by the admin. Returns the updated row, or None if the status is not valid for that order. May raise OutOfStock."""
+    row = _change_order(order_id, status=status)
+    return refresh(row) if row else None
 
 
 def set_payment(order_id, pay_status):
-    """Admin: mark an order's payment as 'paid' or 'rejected'. Returns the updated row (or None)."""
-    db = get_db()
-    if pay_status not in ("paid", "rejected") or not db.execute("SELECT 1 FROM orders WHERE id=?", (order_id,)).fetchone():
-        return None
-    db.execute("UPDATE orders SET pay_status=?, pay_at=? WHERE id=?", (pay_status, now().isoformat(), order_id))
-    db.commit()
-    return db.execute("SELECT * FROM orders WHERE id=?", (order_id,)).fetchone()
+    """Admin: mark an order's payment as 'paid' or 'rejected'. Returns the updated row (or None). May raise OutOfStock."""
+    return _change_order(order_id, pay_status=pay_status)
 
 
 def public_order(r):
@@ -87,17 +102,23 @@ def your_order():
 def create_order():
     check_csrf()
     d = request.get_json(silent=True) or {}
-    lines, subtotal = [], 0
-    for it in d.get("items", []):
-        item = ITEMS.get(it.get("id"))
+    lines, stock_lines, subtotal = [], [], 0
+    wanted = [it for it in d.get("items", []) if isinstance(it, dict)]
+    menu = {r["id"]: r for r in catalog.items([str(it.get("id")) for it in wanted], active_only=True)} if wanted else {}
+    for it in wanted:
+        item = menu.get(str(it.get("id")))
         try:
             qty = int(it.get("qty", 0))
         except (TypeError, ValueError):
             qty = 0
-        if not item or not 0 < qty <= 50:
+        if not item:
+            return jsonify(error="An item in your order is no longer on the menu. Please refresh the page."), 400
+        if not 0 < qty <= 50:
             return jsonify(error="Invalid item"), 400
-        lines.append({"id": item["id"], "name": item["name"], "cat": item["cat"], "price": item["price"], "qty": qty})
-        subtotal += item["price"] * qty           # price always comes from the server
+        price = catalog.num(item["price"])        # price always comes from the server
+        lines.append({"id": item["id"], "name": item["name"], "cat": item["cat_name"], "price": price, "qty": qty})
+        stock_lines.append((item, qty))
+        subtotal = round(subtotal + price * qty, 2)
     if not lines:
         return jsonify(error="Your order is empty"), 400
     otype = d.get("order_type")
@@ -123,13 +144,22 @@ def create_order():
             dlat, dlng = CAFE_LOCATION[0] + 0.012, CAFE_LOCATION[1] + 0.010
     db = get_db()
     ts = now().isoformat()
-    cur = db.execute(
-        "INSERT INTO orders(user_id,customer_name,order_type,payment,note,items_json,subtotal,coupon,discount,total,status,status_at,"
-        "dest_lat,dest_lng,dest_address,cur_lat,cur_lng,pay_status,pay_ref,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (session["user_id"], session["user_name"], otype, payment, str(d.get("note", ""))[:200], json.dumps(lines), subtotal,
-         code if discount else "", discount, subtotal - discount, "Received", ts, dlat, dlng, address if otype == "delivery" else None,
-         CAFE_LOCATION[0], CAFE_LOCATION[1], "pending" if payment == "online" else "unpaid", ref if payment == "online" else None, ts))
-    db.commit()
+    try:                                          # stock + order in one transaction: both happen or neither does
+        stock_json = take_for_order(db, stock_lines)
+        cur = db.execute(
+            "INSERT INTO orders(user_id,customer_name,order_type,payment,note,items_json,subtotal,coupon,discount,total,status,status_at,"
+            "dest_lat,dest_lng,dest_address,cur_lat,cur_lng,pay_status,pay_ref,created_at,stock_json,stock_returned) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)",
+            (session["user_id"], session["user_name"], otype, payment, str(d.get("note", ""))[:200], json.dumps(lines), subtotal,
+             code if discount else "", discount, round(subtotal - discount, 2), "Received", ts, dlat, dlng, address if otype == "delivery" else None,
+             CAFE_LOCATION[0], CAFE_LOCATION[1], "pending" if payment == "online" else "unpaid", ref if payment == "online" else None, ts, stock_json))
+        db.commit()
+    except OutOfStock as e:
+        db.rollback()
+        return jsonify(error=str(e)), 409
+    except Exception:
+        db.rollback()
+        raise
     return jsonify(id=cur.lastrowid), 201
 
 
