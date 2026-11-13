@@ -19,13 +19,17 @@ def _secret_key(app):
         return key
     if PRODUCTION:
         raise SystemExit("\nSECRET_KEY is not set. Set it to a long random value (Render can generate one), then start again.\n")
-    os.makedirs(app.instance_path, exist_ok=True)     # local only: keep a random key in instance/ (git-ignored)
     key_file = os.path.join(app.instance_path, "secret_key")
-    if not os.path.exists(key_file):
-        with open(key_file, "w") as f:
-            f.write(secrets.token_hex(32))
-    with open(key_file) as f:
-        return f.read().strip()
+    try:                                              # local only: keep a random key in instance/ (git-ignored)
+        os.makedirs(app.instance_path, exist_ok=True)
+        if not os.path.exists(key_file):
+            with open(key_file, "w") as f:
+                f.write(secrets.token_hex(32))
+        with open(key_file) as f:
+            return f.read().strip()
+    except OSError:                                   # read-only hosts such as Vercel: set SECRET_KEY to keep logins across restarts
+        print("\n  WARNING: SECRET_KEY is not set and instance/ is read-only, so a temporary key is used.\n")
+        return secrets.token_hex(32)
 
 
 def create_app():
