@@ -1,5 +1,5 @@
 """Email one-time codes (OTP) for sign-up and login, sent over SMTP with Flask-Mail."""
-import hmac, hashlib, json, secrets
+import hmac, hashlib, json, os, secrets, socket, urllib.request
 from datetime import datetime, timedelta, timezone
 from flask import current_app
 from flask_mail import Mail, Message
@@ -17,8 +17,26 @@ def _hash(otp_id, code):
     return hmac.new(current_app.secret_key.encode(), f"{otp_id}:{code}".encode(), hashlib.sha256).hexdigest()
 
 
+def _http_send(msg, email):
+    """Send over HTTPS (Railway blocks SMTP). BREVO_API_KEY or RESEND_API_KEY; returns False if neither is set."""
+    sender = current_app.config["MAIL_DEFAULT_SENDER"]
+    s_name, s_addr = sender if isinstance(sender, tuple) else ("New Found Cafe", sender)
+    if os.environ.get("BREVO_API_KEY"):
+        url, headers = "https://api.brevo.com/v3/smtp/email", {"api-key": os.environ["BREVO_API_KEY"]}
+        body = {"sender": {"name": s_name, "email": s_addr}, "to": [{"email": email}],
+                "subject": msg.subject, "htmlContent": msg.html, "textContent": msg.body}
+    elif os.environ.get("RESEND_API_KEY"):
+        url, headers = "https://api.resend.com/emails", {"Authorization": "Bearer " + os.environ["RESEND_API_KEY"]}
+        body = {"from": f"{s_name} <{s_addr}>", "to": [email], "subject": msg.subject, "html": msg.html, "text": msg.body}
+    else:
+        return False
+    req = urllib.request.Request(url, json.dumps(body).encode(), {**headers, "Content-Type": "application/json", "User-Agent": "nf-cafe"})
+    urllib.request.urlopen(req, timeout=15).read()
+    return True
+
+
 def _deliver(email, code, purpose):
-    if not current_app.config.get("MAIL_USERNAME"):
+    if not (current_app.config.get("MAIL_USERNAME") or os.environ.get("BREVO_API_KEY") or os.environ.get("RESEND_API_KEY")):
         print(f"\n  [SMTP not configured] verification code for {email}: {code}\n")
         return
     action = {"register": "sign up", "login": "log in", "reset": "reset your password"}[purpose]
@@ -29,6 +47,9 @@ def _deliver(email, code, purpose):
                 '<h2 style="font-family:Georgia,serif;letter-spacing:.05em;margin:0 0 12px">NEW FOUND CAFE</h2><p>Your verification code is</p>'
                 f'<p style="font-size:34px;letter-spacing:8px;font-weight:600;margin:8px 0">{code}</p>'
                 '<p style="opacity:.75">It expires in 10 minutes. If this wasn\'t you, you can ignore this email.</p></div>')
+    if _http_send(msg, email):
+        return
+    socket.setdefaulttimeout(10)      # fail fast instead of hanging the worker when SMTP is blocked
     mail.send(msg)
 
 
