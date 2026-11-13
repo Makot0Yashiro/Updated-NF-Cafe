@@ -1,16 +1,41 @@
 {% extends "base.html" %}
+{% block title %}{{ 'Login' if mode == 'login' else 'Create account' }} · New Found Cafe{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">{% endblock %}
+{% block mainclass %}auth-main{% endblock %}
 {% block content %}
-<form method="post" class="card narrow">
-  <p class="eyebrow"><i></i><b></b>{{ 'Welcome back' if mode == 'login' else 'Join us' }}</p>
-  <h1 style="font-size:2.2rem">{{ 'Login' if mode == 'login' else 'Create account' }}</h1>
-  <input type="hidden" name="csrf" value="{{ csrf_token }}">
-  {% if mode == 'register' %}<label>Username<input name="name" required></label>{% endif %}
-  <label>Email<input type="email" name="email" required></label>
-  <label>Password<input type="password" name="password" required></label>
-  {% if mode == 'login' %}<p style="margin:.7rem 0 0;font-size:.85rem"><a href="{{ url_for('auth.forgot') }}">Forgot password?</a></p>{% endif %}
-  <button class="btn full">{{ 'Login' if mode == 'login' else 'Register' }}</button>
-  <p style="margin-top:1.2rem;font-size:.9rem">
-  {% if mode == 'login' %}No account? <a href="{{ url_for('auth.register', next=request.args.get('next')) }}">Register</a>
-  {% else %}Have an account? <a href="{{ url_for('auth.login', next=request.args.get('next')) }}">Login</a>{% endif %}</p>
-</form>
+<section class="auth-layout auth-layout--customer" aria-label="{{ 'Customer login' if mode == 'login' else 'Create a customer account' }}">
+  <aside class="auth-brand">
+    <p class="auth-brand__name">New Found Cafe</p>
+    <div class="auth-brand__badge">
+      <img src="{{ url_for('static', filename='images/newfound-logo-badge.png') }}" alt="New Found Cafe logo badge">
+    </div>
+    <p class="auth-brand__tagline">Coffee · comfort · community</p>
+  </aside>
+
+  <div class="auth-panel">
+    <div class="auth-panel__content">
+      <p class="auth-kicker"><i></i><b></b>{{ 'Welcome back' if mode == 'login' else 'Join us' }}</p>
+      <h1>{{ 'Login' if mode == 'login' else 'Create account' }}</h1>
+      <p class="auth-intro">{{ 'Sign in to continue to your cafe favorites.' if mode == 'login' else 'Create an account to order from New Found Cafe.' }}</p>
+
+      <form method="post" class="auth-form">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}">
+        {% if mode == 'register' %}<label>Username<input name="name" required minlength="1" maxlength="60" autocomplete="name" autofocus></label>{% endif %}
+        <label>Email<input type="email" name="email" required autocomplete="email" {% if mode == 'login' %}autofocus{% endif %}></label>
+        <label>Password<input type="password" name="password" required {% if mode == 'register' %}minlength="6"{% endif %} autocomplete="{{ 'current-password' if mode == 'login' else 'new-password' }}"></label>
+        {% if mode == 'login' %}<p class="auth-forgot"><a href="{{ url_for('auth.forgot') }}">Forgot password?</a></p>{% endif %}
+        <button class="btn full auth-submit">{{ 'Login' if mode == 'login' else 'Register' }} <span aria-hidden="true">→</span></button>
+      </form>
+
+      {% if mode == 'login' %}
+      <div class="auth-switch">
+        <span>New to New Found Cafe?</span>
+        <a class="auth-switch__button" href="{{ url_for('auth.register', next=request.args.get('next')) }}">Sign up <span aria-hidden="true">→</span></a>
+      </div>
+      {% else %}
+      <p class="auth-switch">Have an account? <a href="{{ url_for('auth.login', next=request.args.get('next')) }}">Login</a></p>
+      {% endif %}
+    </div>
+  </div>
+</section>
 {% endblock %}

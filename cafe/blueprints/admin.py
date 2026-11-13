@@ -5,6 +5,7 @@ from flask import Blueprint, render_template, request, jsonify, session, abort, 
 from ..db import get_db
 from ..auth_utils import check_csrf
 from ..menu_data import CAFE_LOCATION
+from ..repositories import OrderRepository, UserRepository
 from ..stock import OutOfStock
 from .orders import refresh, public_order, set_status, set_payment, stages
 import json
@@ -17,8 +18,8 @@ ALL_STATUSES = ["Received", "Preparing", "Ready", "Out for delivery", "Delivered
 def admin_required(f):
     @wraps(f)
     def wrapper(*a, **kw):
-        u = get_db().execute("SELECT is_admin FROM users WHERE id=?", (session.get("user_id"),)).fetchone()
-        if not u or not u["is_admin"]:
+        user = UserRepository(get_db()).get(session.get("user_id"))
+        if not user or not user.is_admin:
             if request.path.startswith("/admin/api/"):
                 abort(404)
             session.pop("is_admin", None)
@@ -35,7 +36,7 @@ def bars(pairs, sub=None):
 @bp.get("/admin")
 @admin_required
 def dashboard():
-    rows = get_db().execute("SELECT * FROM orders").fetchall()
+    rows = [order.to_record() for order in OrderRepository(get_db()).list()]
     ok = [r for r in rows if r["status"] != "Cancelled" and r["pay_status"] != "rejected"]
     day = lambda r: datetime.fromisoformat(r["created_at"]).astimezone(PH).date()
     today = datetime.now(PH).date()
@@ -64,12 +65,10 @@ def dashboard():
 def orders_page():
     st = request.args.get("status") if request.args.get("status") in ALL_STATUSES else None
     pay = request.args.get("pay") == "pending"
-    conds, args = [], []
+    filters = {"limit": 200, "pending_payment": pay}
     if st:
-        conds.append("status=?"); args.append(st)
-    if pay:
-        conds.append("pay_status='pending'")
-    rows = get_db().execute("SELECT * FROM orders" + (" WHERE " + " AND ".join(conds) if conds else "") + " ORDER BY id DESC LIMIT 200", tuple(args)).fetchall()
+        filters["status"] = st
+    rows = [order.to_record() for order in OrderRepository(get_db()).list(**filters)]
     orders = []
     for r in rows:
         o = public_order(refresh(r))
@@ -82,7 +81,8 @@ def orders_page():
 @bp.get("/admin/api/orders/<int:order_id>/track")
 @admin_required
 def track(order_id):
-    r = get_db().execute("SELECT * FROM orders WHERE id=?", (order_id,)).fetchone() or abort(404)
+    order = OrderRepository(get_db()).get(order_id)
+    r = order.to_record() if order else abort(404)
     return jsonify(public_order(refresh(r)))
 
 
@@ -102,8 +102,11 @@ def update_status(order_id):
 def update_payment(order_id):
     check_csrf()
     action = (request.get_json(silent=True) or {}).get("action")
+    pay_status = {"confirm": "paid", "reject": "rejected"}.get(action)
+    if pay_status is None:
+        return jsonify(error="Choose confirm or reject."), 400
     try:
-        r = set_payment(order_id, {"confirm": "paid", "reject": "rejected"}.get(action))
+        r = set_payment(order_id, pay_status)
     except OutOfStock as e:
         return jsonify(error=str(e)), 409
     return jsonify(public_order(r)) if r else (jsonify(error="Invalid payment action"), 400)

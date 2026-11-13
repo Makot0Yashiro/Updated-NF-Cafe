@@ -1,6 +1,9 @@
+import re
 import secrets
 from functools import wraps
 from flask import session, request, redirect, url_for, abort, jsonify
+
+_EMAIL_RE = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
 
 
 def login_required(f):
@@ -14,6 +17,10 @@ def login_required(f):
             return redirect(url_for("admin.dashboard"))
         return f(*a, **kw)
     return wrapper
+
+
+def valid_email(value):
+    return isinstance(value, str) and _EMAIL_RE.fullmatch(value) is not None
 
 
 def check_csrf():

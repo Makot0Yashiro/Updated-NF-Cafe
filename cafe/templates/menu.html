@@ -121,10 +121,16 @@ $('place').onclick = async () => {
     if (!body.address.trim()) return fail('Please enter your delivery address.');
     Object.assign(body, await getPos());
   }
-  const r = await fetch('/api/orders', {method: 'POST', headers: {'Content-Type': 'application/json',
-    'X-CSRFToken': document.querySelector('meta[name=csrf]').content}, body: JSON.stringify(body)});
-  const j = await r.json();
-  if (r.ok) location.href = '/your-order?order=' + j.id; else fail(j.error || 'Could not place order');
+  try {
+    const r = await fetch('/api/orders', {method: 'POST', headers: {'Content-Type': 'application/json',
+      'X-CSRFToken': document.querySelector('meta[name=csrf]').content}, body: JSON.stringify(body)});
+    const j = await r.json();
+    if (r.ok) location.href = '/your-order?order=' + j.id;
+    else fail(j.error || 'We could not place your order. Please review the details and try again.');
+  } catch (error) {
+    console.error('Could not place the order', error);
+    fail('We could not reach the cafe to place your order. Check your connection and try again.');
+  }
 };
 </script>
 {% endblock %}

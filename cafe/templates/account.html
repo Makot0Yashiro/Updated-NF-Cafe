@@ -15,7 +15,7 @@
     <div>
       <div class="card">
         <h2>Profile</h2>
-        <label>Username<input name="name" value="{{ me.name }}" required maxlength="60"></label>
+        <label>Username<input name="name" value="{{ me.name }}" required minlength="1" maxlength="60"></label>
         <div class="grid2">
           <label>Email<input type="email" name="email" value="{{ me.email }}" required></label>
           <label>Contact number<input type="tel" name="phone" value="{{ me.phone }}" placeholder="09XX XXX XXXX"></label>

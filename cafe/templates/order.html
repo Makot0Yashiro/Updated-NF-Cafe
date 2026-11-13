@@ -11,6 +11,7 @@
 <a class="btn" href="{{ url_for('menu.menu') }}">Browse the menu</a>
 {% else %}
 <button class="btn small ghost" id="refresh" style="margin-bottom:1rem">Refresh orders</button>
+<p id="refresh-error" class="flash" role="alert" hidden></p>
 {% for o in orders %}
 <div class="card order" data-id="{{ o.id }}">
   <div class="row"><h2>Order #{{ o.id }}</h2><span class="badge" data-status></span></div>
@@ -64,13 +65,26 @@ document.querySelectorAll('.order').forEach(card => {
   tog.onclick = () => { div.hidden = !div.hidden; tog.textContent = div.hidden ? 'Track on map' : 'Hide map'; if (!div.hidden) showMap(card, o, true); };
 });
 async function refresh() {
-  const r = await fetch('/api/orders'); if (!r.ok) return;
-  (await r.json()).forEach(o => { const c = document.querySelector(`.order[data-id="${o.id}"]`); if (!c) return;
-    Object.assign(orders.find(x => x.id === o.id), o); paint(c, o); if (!c.querySelector('.omap').hidden) showMap(c, o, false); });
+  const error = document.getElementById('refresh-error');
+  try {
+    const r = await fetch('/api/orders');
+    if (!r.ok) {
+      error.textContent = 'We could not refresh your orders. Please try again.';
+      error.hidden = false;
+      return;
+    }
+    (await r.json()).forEach(o => { const c = document.querySelector(`.order[data-id="${o.id}"]`); if (!c) return;
+      Object.assign(orders.find(x => x.id === o.id), o); paint(c, o); if (!c.querySelector('.omap').hidden) showMap(c, o, false); });
+    error.hidden = true;
+  } catch (e) {
+    console.error('Could not refresh orders', e);
+    error.textContent = 'We could not reach the cafe. Check your connection and try again.';
+    error.hidden = false;
+  }
 }
 document.getElementById('refresh').onclick = refresh; setInterval(refresh, 8000);
 const want = document.querySelector(`.order[data-id="${new URLSearchParams(location.search).get('order')}"]`) || document.querySelector('.order');
-want.querySelector('.tog').click();
+if (want) want.querySelector('.tog').click();
 </script>
 {% endif %}
 {% endblock %}

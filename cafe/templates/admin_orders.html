@@ -5,7 +5,6 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 {% endblock %}
 {% block content %}
-{% include "admin_tabs.html" %}
 <h1>Manage Orders</h1>
 <p class="chips"><a href="{{ url_for('admin.orders_page') }}" class="{{ 'on' if not current and not pay_filter }}">All</a>
 <a href="{{ url_for('admin.orders_page', pay='pending') }}" class="{{ 'on' if pay_filter }}">Payments to confirm</a>

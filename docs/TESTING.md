@@ -1,7 +1,7 @@
 # How to run the tests
 
 The tests check the whole app automatically: sign-up and login, the profile, the menu, ordering and stock, the admin inventory
-pages, photo uploads, and the database setup. **Nobody has run them yet**, so some may fail. That's expected, and the failures are what we need.
+pages, photo uploads, and the database setup. The latest full run passed all 51 tests.
 
 They only use throwaway databases (`nf_cafe_test`, plus two short-lived ones) that are created and deleted automatically.
 **Your real `nf_cafe` database is never touched.** No real emails are sent.

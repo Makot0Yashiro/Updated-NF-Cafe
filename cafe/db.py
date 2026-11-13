@@ -4,7 +4,6 @@ newer columns for older databases, the starter menu (once) and the first admin a
 import os, re
 import mysql.connector
 from flask import g
-from werkzeug.security import generate_password_hash
 from .config import MYSQL, PRODUCTION
 
 IntegrityError = mysql.connector.errors.IntegrityError
@@ -60,24 +59,6 @@ def schema_statements():
     return [s.strip() for s in sql.split(";") if s.strip().upper().startswith("CREATE TABLE")]
 
 
-def _ensure_admin(cur):
-    cur.execute("SELECT 1 FROM users WHERE is_admin=1 LIMIT 1")
-    if cur.fetchone():
-        return
-    email = os.environ.get("ADMIN_EMAIL", "admin@newfoundcafe.com").strip().lower()
-    pw = os.environ.get("ADMIN_PASSWORD", "")
-    if not pw:
-        if PRODUCTION:
-            raise SystemExit("\nThere is no admin account yet. Set ADMIN_EMAIL and ADMIN_PASSWORD, then start the app again.\n")
-        pw = "admin123"
-    cur.execute("SELECT 1 FROM users WHERE email=%s", (email,))
-    if cur.fetchone():
-        cur.execute("UPDATE users SET is_admin=1 WHERE email=%s", (email,))
-    else:
-        cur.execute("INSERT INTO users(name,email,password_hash,is_admin) VALUES('Admin',%s,%s,1)", (email, generate_password_hash(pw)))
-    print(f"\n  Admin account ready: {email}" + ("" if PRODUCTION or os.environ.get("ADMIN_PASSWORD") else " / admin123  (set ADMIN_EMAIL / ADMIN_PASSWORD to change)") + "\n")
-
-
 def setup(conn):
     """Create / upgrade / seed. Safe to repeat; the caller holds the setup lock."""
     cur = conn.cursor()
@@ -96,7 +77,8 @@ def setup(conn):
     cur.execute("UPDATE orders SET payment='online' WHERE payment IN ('gcash','maya','card')")
     cur.execute("UPDATE orders SET pay_status='pending' WHERE payment='online' AND pay_status='unpaid'")
     cur.execute("UPDATE users SET pay_method='online' WHERE pay_method IN ('gcash','maya','card')")
-    _ensure_admin(cur)
+    from .repositories import UserRepository
+    UserRepository(DB(conn)).ensure_admin()
     conn.commit()
 
 

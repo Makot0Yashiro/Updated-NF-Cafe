@@ -6,6 +6,8 @@ from flask import Blueprint, render_template, request, jsonify
 from ..db import get_db, IntegrityError
 from ..auth_utils import check_csrf
 from .. import catalog, images
+from ..models import Category, Ingredient, MenuItem, RecipeIngredient
+from ..repositories import MenuRepository
 from .admin import admin_required
 
 bp = Blueprint("inventory", __name__)
@@ -24,6 +26,10 @@ class Invalid(Exception):
 def _invalid(e):
     get_db().rollback()
     return jsonify(error=str(e)), e.status
+
+
+def _repository():
+    return MenuRepository(get_db())
 
 
 def _body():
@@ -57,20 +63,16 @@ def _amount(v, label, positive=False):
 
 
 def _unique(table, name, own_id=None, label="name"):
-    if get_db().execute(f"SELECT 1 FROM {table} WHERE LOWER(name)=LOWER(?) AND id<>?", (name, own_id if own_id is not None else "")).fetchone():
+    if _repository().name_exists(table, name, own_id):
         raise Invalid(f"Something with the {label} “{name}” already exists.", 409)
 
 
 def _slug(table, name):
-    base = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:34] or {"menu_items": "item", "categories": "category"}[table]
-    slug, n = base, 2
-    while get_db().execute(f"SELECT 1 FROM {table} WHERE id=?", (slug,)).fetchone():
-        slug, n = f"{base}-{n}", n + 1
-    return slug
+    return _repository().slug(table, name)
 
 
 def _next_sort(table):
-    return (get_db().execute(f"SELECT COALESCE(MAX(sort), 0) AS s FROM {table}").fetchone()["s"]) + 1
+    return _repository().next_sort(table)
 
 
 def _commit(make_response):
@@ -97,10 +99,10 @@ def items_page():
 
 # ===================== ingredients =====================
 def _ingredient_or_404(ing_id, lock=False):
-    r = get_db().execute("SELECT * FROM ingredients WHERE id=?" + (" FOR UPDATE" if lock else ""), (ing_id,)).fetchone()
-    if not r:
+    ingredient = _repository().ingredient(ing_id, lock)
+    if not ingredient:
         raise Invalid("That ingredient no longer exists. Reload the page.", 404)
-    return r
+    return ingredient
 
 
 def _ingredient_fields(d, own_id=None):
@@ -123,8 +125,9 @@ def list_ingredients():
 @admin_required
 def add_ingredient():
     name, unit, stock, low_at = _ingredient_fields(_body())
-    cur = get_db().execute("INSERT INTO ingredients(name,unit,stock,low_at) VALUES(?,?,?,?)", (name, unit, stock, low_at))
-    return _commit(lambda: (jsonify(catalog.ingredient(cur.lastrowid)), 201))
+    ingredient = Ingredient(None, name, unit, stock, low_at)
+    _repository().save_ingredient(ingredient)
+    return _commit(lambda: (jsonify(catalog.ingredient(ingredient.id)), 201))
 
 
 @bp.put("/admin/api/ingredients/<int:ing_id>")
@@ -133,10 +136,10 @@ def edit_ingredient(ing_id):
     d = _body()
     old = _ingredient_or_404(ing_id, lock=True)
     name, unit, stock, low_at = _ingredient_fields(d, ing_id)
-    used = catalog.used_in().get(ing_id, [])
-    if unit != old["unit"] and used:
+    if unit != old.unit and old.used_in:
+        used = old.used_in
         raise Invalid(f"Can't change the unit while {', '.join(used)} use it. Remove it from those items first.", 409)
-    get_db().execute("UPDATE ingredients SET name=?, unit=?, stock=?, low_at=? WHERE id=?", (name, unit, stock, low_at, ing_id))
+    _repository().save_ingredient(Ingredient(ing_id, name, unit, stock, low_at, old.used_in))
     return _commit(lambda: jsonify(catalog.ingredient(ing_id)))
 
 
@@ -144,10 +147,11 @@ def edit_ingredient(ing_id):
 @admin_required
 def restock_ingredient(ing_id):
     amount = _amount(_body().get("amount"), "Amount", positive=True)
-    row = _ingredient_or_404(ing_id, lock=True)
-    if row["stock"] + amount > MAX_AMOUNT:
+    ingredient = _ingredient_or_404(ing_id, lock=True)
+    if ingredient.stock + amount > MAX_AMOUNT:
         raise Invalid("That would make the stock too large.")
-    get_db().execute("UPDATE ingredients SET stock = stock + ? WHERE id=?", (amount, ing_id))
+    ingredient.restock(amount)
+    _repository().save_ingredient(ingredient)
     return _commit(lambda: jsonify(catalog.ingredient(ing_id)))
 
 
@@ -155,18 +159,20 @@ def restock_ingredient(ing_id):
 @admin_required
 def delete_ingredient(ing_id):
     check_csrf()
-    _ingredient_or_404(ing_id, lock=True)
-    used = catalog.used_in().get(ing_id, [])
-    if used:
+    ingredient = _ingredient_or_404(ing_id, lock=True)
+    if ingredient.used_in:
+        used = ingredient.used_in
         raise Invalid(f"Used in {', '.join(used)}. Remove it from those items first.", 409)
-    get_db().execute("DELETE FROM ingredients WHERE id=?", (ing_id,))
+    _repository().delete_ingredient(ing_id)
     return _commit(lambda: ("", 204))
 
 
 # ===================== menu items =====================
 def _item_or_404(item_id):
-    if not get_db().execute("SELECT 1 FROM menu_items WHERE id=? FOR UPDATE", (item_id,)).fetchone():
+    item = _repository().get(item_id, lock=True)
+    if not item:
         raise Invalid("That menu item no longer exists. Reload the page.", 404)
+    return item
 
 
 def _item_fields(d, own_id=None):
@@ -191,18 +197,11 @@ def _item_fields(d, own_id=None):
             raise Invalid("Each ingredient can only be listed once.")
         seen.add(ing_id)
         rows.append((ing_id, _amount(r.get("qty"), "Every ingredient amount", positive=True)))
-    found = {r["id"] for r in get_db().execute(f"SELECT id FROM ingredients WHERE id IN ({','.join('?' * len(seen))})", tuple(seen)).fetchall()}
+    found = _repository().existing_ingredient_ids(seen)
     if found != seen:
         raise Invalid("One of the ingredients no longer exists. Reload the page.")
     _unique("menu_items", name, own_id, "menu item name")
     return name, cat_id, price, img, bool(d.get("active", True)), rows
-
-
-def _save_recipe(item_id, rows):
-    db = get_db()
-    db.execute("DELETE FROM menu_item_ingredients WHERE item_id=?", (item_id,))
-    for ing_id, qty in rows:
-        db.execute("INSERT INTO menu_item_ingredients(item_id,ingredient_id,qty) VALUES(?,?,?)", (item_id, ing_id, qty))
 
 
 @bp.get("/admin/api/menu-items")
@@ -217,9 +216,9 @@ def list_items():
 def add_item():
     name, cat_id, price, img, active, rows = _item_fields(_body())
     item_id = _slug("menu_items", name)
-    get_db().execute("INSERT INTO menu_items(id,name,cat_id,price,img,active,sort) VALUES(?,?,?,?,?,?,?)",
-                     (item_id, name, cat_id, price, img, int(active), _next_sort("menu_items")))
-    _save_recipe(item_id, rows)
+    cat_name = catalog.category(cat_id)["name"]
+    recipe = [RecipeIngredient(ing_id, "", "", qty, Decimal("0")) for ing_id, qty in rows]
+    _repository().save(MenuItem(item_id, name, cat_id, cat_name, price, active, img, _next_sort("menu_items"), recipe))
     return _commit(lambda: (jsonify(catalog.item(item_id)), 201))
 
 
@@ -227,10 +226,11 @@ def add_item():
 @admin_required
 def edit_item(item_id):
     d = _body()
-    _item_or_404(item_id)
+    old = _item_or_404(item_id)
     name, cat_id, price, img, active, rows = _item_fields(d, item_id)
-    get_db().execute("UPDATE menu_items SET name=?, cat_id=?, price=?, img=?, active=? WHERE id=?", (name, cat_id, price, img, int(active), item_id))
-    _save_recipe(item_id, rows)
+    cat_name = catalog.category(cat_id)["name"]
+    recipe = [RecipeIngredient(ing_id, "", "", qty, Decimal("0")) for ing_id, qty in rows]
+    _repository().save(MenuItem(item_id, name, cat_id, cat_name, price, active, img, old.sort, recipe))
     return _commit(lambda: jsonify(catalog.item(item_id)))
 
 
@@ -239,7 +239,7 @@ def edit_item(item_id):
 def delete_item(item_id):
     check_csrf()
     _item_or_404(item_id)
-    get_db().execute("DELETE FROM menu_items WHERE id=?", (item_id,))   # recipe rows + photo go with it (ON DELETE CASCADE)
+    _repository().delete(item_id)   # recipe rows + photo go with it (ON DELETE CASCADE)
     return _commit(lambda: ("", 204))
 
 
@@ -255,9 +255,7 @@ def upload_item_image(item_id):
         data, mime, version = images.process(f.read(images.MAX_UPLOAD_BYTES + 1))
     except images.BadImage as e:
         raise Invalid(str(e), e.status)
-    get_db().execute("INSERT INTO menu_item_images(item_id,mime,data,version,updated_at) VALUES(?,?,?,?,UTC_TIMESTAMP()) "
-                     "ON DUPLICATE KEY UPDATE mime=VALUES(mime), data=VALUES(data), version=VALUES(version), updated_at=VALUES(updated_at)",
-                     (item_id, mime, data, version))
+    _repository().save_image(item_id, mime, data, version)
     return _commit(lambda: jsonify(catalog.item(item_id)))
 
 
@@ -266,14 +264,16 @@ def upload_item_image(item_id):
 def delete_item_image(item_id):
     check_csrf()
     _item_or_404(item_id)
-    get_db().execute("DELETE FROM menu_item_images WHERE item_id=?", (item_id,))
+    _repository().delete_image(item_id)
     return _commit(lambda: jsonify(catalog.item(item_id)))
 
 
 # ===================== categories =====================
 def _category_or_404(cat_id):
-    if not get_db().execute("SELECT 1 FROM categories WHERE id=? FOR UPDATE", (cat_id,)).fetchone():
+    category = _repository().category(cat_id, lock=True)
+    if not category:
         raise Invalid("That category no longer exists. Reload the page.", 404)
+    return category
 
 
 def _category_fields(d, own_id=None):
@@ -292,8 +292,7 @@ def _category_fields(d, own_id=None):
 def add_category():
     name, group, color, emoji = _category_fields(_body())
     cat_id = _slug("categories", name)
-    get_db().execute("INSERT INTO categories(id,name,group_name,color,emoji,sort) VALUES(?,?,?,?,?,?)",
-                     (cat_id, name, group, color, emoji, _next_sort("categories")))
+    _repository().save_category(Category(cat_id, name, group, color, emoji, _next_sort("categories")))
     return _commit(lambda: (jsonify(catalog.category(cat_id)), 201))
 
 
@@ -301,9 +300,9 @@ def add_category():
 @admin_required
 def edit_category(cat_id):
     d = _body()
-    _category_or_404(cat_id)
+    old = _category_or_404(cat_id)
     name, group, color, emoji = _category_fields(d, cat_id)
-    get_db().execute("UPDATE categories SET name=?, group_name=?, color=?, emoji=? WHERE id=?", (name, group, color, emoji, cat_id))
+    _repository().save_category(Category(cat_id, name, group, color, emoji, old.sort))
     return _commit(lambda: jsonify(catalog.category(cat_id)))
 
 
@@ -312,9 +311,9 @@ def edit_category(cat_id):
 def delete_category(cat_id):
     check_csrf()
     _category_or_404(cat_id)
-    n = get_db().execute("SELECT COUNT(*) AS n FROM menu_items WHERE cat_id=?", (cat_id,)).fetchone()["n"]
+    n = _repository().category_item_count(cat_id)
     if n:
         name = catalog.category(cat_id)["name"]
         raise Invalid(f"Move or delete the {n} item{'s' if n != 1 else ''} in {name} first.", 409)
-    get_db().execute("DELETE FROM categories WHERE id=?", (cat_id,))
+    _repository().delete_category(cat_id)
     return _commit(lambda: ("", 204))

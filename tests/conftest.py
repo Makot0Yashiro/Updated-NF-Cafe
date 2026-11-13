@@ -59,7 +59,7 @@ def app():
 def outbox(app):
     """Emails the app tried to send during this test (flask_mail.Message objects)."""
     sent = []
-    def record(message, app):
+    def record(sender, message):
         sent.append(message)
     email_dispatched.connect(record)
     yield sent

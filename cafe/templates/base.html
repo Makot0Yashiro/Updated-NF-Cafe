@@ -11,6 +11,7 @@
 </head><body>
 <header class="top">
   <a href="{{ url_for('admin.dashboard') if is_admin else url_for('main.home') }}" class="brand">New Found Cafe{% if is_admin %} · Admin{% endif %}</a>
+  {% if request.endpoint not in ('auth.login', 'auth.admin_login') %}
   <nav>
     {% if is_admin %}
     <a href="{{ url_for('admin.dashboard') }}" class="{{ 'on' if request.endpoint == 'admin.dashboard' }}">Analytics</a>
@@ -26,6 +27,7 @@
     <form method="post" action="{{ url_for('auth.logout') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button>Logout</button></form>
     {% elif request.endpoint != 'auth.admin_login' %}<a href="{{ url_for('auth.login') }}">Login</a>{% endif %}
   </nav>
+  {% endif %}
 </header>
 <main class="{% block mainclass %}{% endblock %}">
 {% for m in get_flashed_messages() %}<p class="flash">{{ m }}</p>{% endfor %}

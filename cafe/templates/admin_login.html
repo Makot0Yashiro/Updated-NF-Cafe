@@ -1,13 +1,33 @@
 {% extends "base.html" %}
 {% block meta %}<meta name="robots" content="noindex, nofollow">{% endblock %}
 {% block title %}Staff sign in · New Found Cafe{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">{% endblock %}
+{% block mainclass %}auth-main{% endblock %}
 {% block content %}
-<form method="post" class="card dark narrow">
-  <p class="eyebrow" style="color:var(--line)"><i style="background:var(--line)"></i><b style="border-color:var(--line)"></b>Staff only</p>
-  <h1 style="font-size:2.2rem">Admin login</h1>
-  <input type="hidden" name="csrf" value="{{ csrf_token }}">
-  <label>Email<input type="email" name="email" required autofocus></label>
-  <label>Password<input type="password" name="password" required></label>
-  <button class="btn full">Sign in</button>
-</form>
+<section class="auth-layout auth-layout--admin" aria-label="Staff login">
+  <aside class="auth-brand">
+    <p class="auth-brand__name">New Found Cafe</p>
+    <div class="auth-brand__badge">
+      <img src="{{ url_for('static', filename='images/newfound-logo-badge.png') }}" alt="New Found Cafe logo badge">
+    </div>
+    <p class="auth-brand__tagline">Staff access</p>
+  </aside>
+
+  <div class="auth-panel">
+    <div class="auth-panel__content">
+      <p class="auth-kicker"><i></i><b></b>Staff only</p>
+      <h1>Admin login</h1>
+      <p class="auth-intro">Sign in to manage the cafe.</p>
+
+      <form method="post" class="auth-form">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}">
+        <label>Email<input type="email" name="email" required autocomplete="username" autofocus></label>
+        <label>Password<input type="password" name="password" required autocomplete="current-password"></label>
+        <button class="btn full auth-submit">Sign in <span aria-hidden="true">→</span></button>
+      </form>
+
+      <p class="auth-switch"><a href="{{ url_for('main.home') }}">Return to New Found Cafe</a></p>
+    </div>
+  </div>
+</section>
 {% endblock %}

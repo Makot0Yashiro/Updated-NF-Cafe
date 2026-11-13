@@ -1,16 +1,33 @@
 import json
+from urllib.parse import unquote, urlsplit
 from flask import current_app
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
-from werkzeug.security import generate_password_hash, check_password_hash
 from ..db import get_db, IntegrityError
-from ..auth_utils import check_csrf
+from ..auth_utils import check_csrf, valid_email
 from ..mailer import send_code, resend_code, check_code
+from ..models import Customer, User
+from ..repositories import UserRepository
 
 bp = Blueprint("auth", __name__)
 
 
 def _safe(nxt):
-    return nxt if nxt and nxt.startswith("/") and not nxt.startswith("//") else url_for("account.account")
+    if not nxt:
+        return url_for("main.home")
+    try:
+        parsed = urlsplit(nxt)
+    except ValueError:
+        return url_for("main.home")
+    if parsed.scheme or parsed.netloc or not parsed.path.startswith("/"):
+        return url_for("main.home")
+    path = parsed.path
+    while True:
+        if "\\" in path or path.startswith("//"):
+            return url_for("main.home")
+        decoded_path = unquote(path)
+        if decoded_path == path:
+            return nxt
+        path = decoded_path
 
 
 def _mask(email):
@@ -37,9 +54,11 @@ def _begin(email, purpose, payload=None):
 def login():
     if request.method == "POST":
         check_csrf()
-        u = get_db().execute("SELECT * FROM users WHERE email=?", (request.form["email"].strip().lower(),)).fetchone()
-        if u and not u["is_admin"] and check_password_hash(u["password_hash"], request.form["password"]):
-            resp = _begin(u["email"], "login")
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
+        user = UserRepository(get_db()).get_by_email(email) if email else None
+        if user and not user.is_admin and user.verify_password(password):
+            resp = _begin(user.email, "login")
             if resp:
                 return resp
         else:
@@ -51,10 +70,12 @@ def login():
 def admin_login():
     if request.method == "POST":
         check_csrf()
-        u = get_db().execute("SELECT * FROM users WHERE email=?", (request.form["email"].strip().lower(),)).fetchone()
-        if u and u["is_admin"] and check_password_hash(u["password_hash"], request.form["password"]):
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
+        user = UserRepository(get_db()).get_by_email(email) if email else None
+        if user and user.is_admin and user.verify_password(password):
             session.clear()
-            session.update(user_id=u["id"], user_name=u["name"], is_admin=True)
+            session.update(user_id=user.id, user_name=user.name, is_admin=True)
             return redirect(url_for("admin.dashboard"))
         flash("Wrong email or password.")
     return render_template("admin_login.html")
@@ -65,13 +86,19 @@ def register():
     if request.method == "POST":
         check_csrf()
         f = request.form
-        email = f["email"].strip().lower()
-        if len(f["password"]) < 6:
+        name = f.get("name", "").strip()
+        email = f.get("email", "").strip().lower()
+        password = f.get("password", "")
+        if not name:
+            flash("Please enter a username.")
+        elif not valid_email(email):
+            flash("Please enter a valid email address.")
+        elif len(password) < 6:
             flash("Password must be at least 6 characters.")
-        elif get_db().execute("SELECT 1 FROM users WHERE email=?", (email,)).fetchone():
+        elif UserRepository(get_db()).email_exists(email):
             flash("That email is already registered.")
         else:
-            resp = _begin(email, "register", {"name": f["name"].strip()[:60], "pw": generate_password_hash(f["password"])})
+            resp = _begin(email, "register", {"name": name[:60], "pw": User.hash_password(password)})
             if resp:
                 return resp
     return render_template("auth.html", mode="register")
@@ -91,15 +118,16 @@ def verify():
             if row["purpose"] == "register":
                 p = json.loads(row["payload"])
                 try:
-                    uid = db.execute("INSERT INTO users(name,email,phone,password_hash) VALUES(?,?,?,?)", (p["name"], row["email"], "", p["pw"])).lastrowid
+                    user = Customer(None, p["name"], row["email"], p["pw"])
+                    uid = UserRepository(db).save(user)
                     db.commit()
                 except IntegrityError:
                     flash("That email is already registered.")
                     return redirect(url_for("auth.login"))
                 name = p["name"]
             else:
-                u = db.execute("SELECT id, name FROM users WHERE email=?", (row["email"],)).fetchone()
-                uid, name = u["id"], u["name"]
+                user = UserRepository(db).get_by_email(row["email"])
+                uid, name = user.id, user.name
             session.clear()
             session.update(user_id=uid, user_name=name, is_admin=False)
             return redirect(_safe(request.args.get("next")))
@@ -129,8 +157,8 @@ def resend():
 
 def _send_reset(email, replace_id=None):
     """Emails a reset code if the account exists. 0 = no such account (we never reveal that), None = asked again too soon."""
-    u = get_db().execute("SELECT is_admin FROM users WHERE email=?", (email,)).fetchone()
-    if not u or u["is_admin"]:
+    user = UserRepository(get_db()).get_by_email(email)
+    if not user or user.is_admin:
         return 0
     return send_code(email, "reset", replace_id=replace_id or None)
 
@@ -139,8 +167,8 @@ def _send_reset(email, replace_id=None):
 def forgot():
     if request.method == "POST":
         check_csrf()
-        email = request.form["email"].strip().lower()
-        if "@" not in email:
+        email = request.form.get("email", "").strip().lower()
+        if not valid_email(email):
             flash("Please enter a valid email address.")
             return render_template("forgot.html")
         try:
@@ -164,9 +192,11 @@ def reset():
     if request.method == "POST":
         check_csrf()
         f = request.form
-        if len(f["password"]) < 6:
+        password = f.get("password", "")
+        confirm = f.get("confirm", "")
+        if len(password) < 6:
             flash("Password must be at least 6 characters.")
-        elif f["password"] != f["confirm"]:
+        elif password != confirm:
             flash("The two passwords don't match.")
         else:
             row, err = check_code(session["reset_id"], f.get("code", "")) if session.get("reset_id") else (None, True)
@@ -174,7 +204,7 @@ def reset():
                 flash("That code is incorrect or has expired.")
             else:
                 db = get_db()
-                db.execute("UPDATE users SET password_hash=? WHERE email=? AND is_admin=0", (generate_password_hash(f["password"]), row["email"]))
+                UserRepository(db).set_password(row["email"], password)
                 db.commit()
                 session.pop("reset_id", None); session.pop("reset_email", None)
                 flash("Your password has been updated. Please log in.")

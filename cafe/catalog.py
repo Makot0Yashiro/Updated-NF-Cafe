@@ -1,108 +1,78 @@
-"""Reading the menu and inventory from the database (categories, menu items with their ingredients, ingredients)."""
+"""Compatibility helpers for the menu, category, and ingredient repositories."""
 from collections import defaultdict
 from decimal import Decimal
-from urllib.parse import quote
+
 from .db import get_db
+from .repositories import MenuRepository
 
 
-def num(v):
+def _repository():
+    return MenuRepository(get_db())
+
+
+def num(value):
     """DECIMAL -> float for JSON / templates (Flask would send Decimal as a string)."""
-    return float(v) if isinstance(v, Decimal) else v
+    return float(value) if isinstance(value, Decimal) else value
 
 
-def _in(ids):
-    return ",".join("?" * len(ids))
-
-
-# ---------- categories ----------
-def category_out(r):
-    return {"id": r["id"], "name": r["name"], "group": r["group_name"], "color": r["color"], "emoji": r["emoji"], "sort": r["sort"]}
+def category_out(category):
+    return category.to_dict()
 
 
 def categories():
-    rows = get_db().execute("SELECT * FROM categories ORDER BY sort, name").fetchall()
-    return [category_out(r) for r in rows]
+    return [category_out(category) for category in _repository().categories()]
 
 
 def category(cat_id):
-    r = get_db().execute("SELECT * FROM categories WHERE id=?", (cat_id,)).fetchone()
-    return category_out(r) if r else None
+    result = _repository().category(cat_id)
+    return category_out(result) if result else None
 
 
-# ---------- ingredients ----------
 def used_in():
-    """ingredient id -> [menu item names that use it]"""
-    rows = get_db().execute("SELECT r.ingredient_id, m.name FROM menu_item_ingredients r JOIN menu_items m ON m.id=r.item_id ORDER BY m.name").fetchall()
-    out = defaultdict(list)
-    for r in rows:
-        out[r["ingredient_id"]].append(r["name"])
-    return out
+    """Ingredient id -> menu item names that use it."""
+    return _repository().used_in()
 
 
-def ingredient_out(r, used=None):
-    d = {"id": r["id"], "name": r["name"], "unit": r["unit"], "stock": num(r["stock"]), "low_at": num(r["low_at"])}
-    if used is not None:
-        d["used_in"] = used.get(r["id"], [])
-    return d
+def ingredient_out(ingredient, used=None):
+    return ingredient.to_dict(include_usage=used is not None)
 
 
 def ingredients(with_usage=True):
-    used = used_in() if with_usage else None
-    return [ingredient_out(r, used) for r in get_db().execute("SELECT * FROM ingredients ORDER BY name").fetchall()]
+    return [ingredient_out(ingredient, {} if with_usage else None)
+            for ingredient in _repository().ingredients(with_usage)]
 
 
 def ingredient(ing_id):
-    r = get_db().execute("SELECT * FROM ingredients WHERE id=?", (ing_id,)).fetchone()
-    return ingredient_out(r, used_in()) if r else None
-
-
-# ---------- menu items ----------
-def _recipes(item_ids):
-    """item id -> [{ingredient_id, name, unit, qty, stock}] (qty and stock stay Decimal for exact maths)"""
-    out = defaultdict(list)
-    if item_ids:
-        rows = get_db().execute(
-            f"SELECT r.item_id, r.ingredient_id, r.qty, i.name, i.unit, i.stock FROM menu_item_ingredients r "
-            f"JOIN ingredients i ON i.id=r.ingredient_id WHERE r.item_id IN ({_in(item_ids)}) ORDER BY i.name", tuple(item_ids)).fetchall()
-        for r in rows:
-            out[r["item_id"]].append({"ingredient_id": r["ingredient_id"], "name": r["name"], "unit": r["unit"], "qty": r["qty"], "stock": r["stock"]})
-    return out
+    result = _repository().ingredient(ing_id)
+    return ingredient_out(result, {}) if result else None
 
 
 def items(ids=None, active_only=False):
-    """Menu items (with recipe) in display order, optionally only the given ids / only active ones."""
-    sql, args = ("SELECT m.*, c.name AS cat_name, p.version AS photo_version FROM menu_items m JOIN categories c ON c.id=m.cat_id "
-                 "LEFT JOIN menu_item_images p ON p.item_id=m.id"), []
-    conds = []
+    """Return repository menu entities as records for existing route/service callers."""
+    filters = {"active_only": active_only}
     if ids is not None:
-        if not ids:
-            return []
-        conds.append(f"m.id IN ({_in(ids)})"); args += list(ids)
-    if active_only:
-        conds.append("m.active=1")
-    rows = get_db().execute(sql + (" WHERE " + " AND ".join(conds) if conds else "") + " ORDER BY c.sort, m.sort, m.name", tuple(args)).fetchall()
-    recipes = _recipes([r["id"] for r in rows])
-    for r in rows:
-        r["recipe"] = recipes[r["id"]]
-    return rows
+        filters["ids"] = ids
+    return [item.to_record() for item in _repository().list(**filters)]
 
 
 def servings(recipe):
     """How many of an item the current stock can make (0 = sold out)."""
-    return min((int(r["stock"] // r["qty"]) for r in recipe), default=0)
+    return min((int(row["stock"] // row["qty"]) for row in recipe), default=0)
 
 
-def photo_url(r):
-    """What an item shows: its uploaded photo (versioned URL, cached forever) or else the image URL typed in, or ''."""
-    if r.get("photo_version"):
-        return f"/media/items/{quote(r['id'])}.webp?v={r['photo_version']}"
-    return r["img"] or ""
+def photo_url(row):
+    """What an item shows: its uploaded photo or else the image URL typed in."""
+    if row.get("photo_version"):
+        from urllib.parse import quote
+        return f"/media/items/{quote(row['id'])}.webp?v={row['photo_version']}"
+    return row.get("img") or ""
 
 
-def item_out(r):
-    return {"id": r["id"], "name": r["name"], "cat_id": r["cat_id"], "price": num(r["price"]), "active": bool(r["active"]),
-            "img": photo_url(r), "img_url": r["img"] or "", "has_photo": bool(r.get("photo_version")),
-            "recipe": [{"ingredient_id": x["ingredient_id"], "name": x["name"], "unit": x["unit"], "qty": num(x["qty"])} for x in r["recipe"]]}
+def item_out(row):
+    return {"id": row["id"], "name": row["name"], "cat_id": row["cat_id"], "price": num(row["price"]), "active": bool(row["active"]),
+            "img": photo_url(row), "img_url": row["img"] or "", "has_photo": bool(row.get("photo_version")),
+            "recipe": [{"ingredient_id": part["ingredient_id"], "name": part["name"], "unit": part["unit"], "qty": num(part["qty"])}
+                       for part in row["recipe"]]}
 
 
 def item(item_id):
@@ -110,16 +80,16 @@ def item(item_id):
     return item_out(rows[0]) if rows else None
 
 
-# ---------- customer menu ----------
 def customer_groups():
-    """Same shape menu.html has always used: [{name, cats: [{id, name, color, emoji, items: [...]}]}].
-    Active items only; categories without active items are left out; sold-out items stay visible but greyed out."""
+    """Keep the existing menu.html structure and show active and sold-out items."""
     by_cat = defaultdict(list)
-    for r in items(active_only=True):
-        by_cat[r["cat_id"]].append({"id": r["id"], "name": r["name"], "price": num(r["price"]), "img": photo_url(r),
-                                    "cat": r["cat_name"], "sold_out": servings(r["recipe"]) < 1})
+    for row in items(active_only=True):
+        by_cat[row["cat_id"]].append({"id": row["id"], "name": row["name"], "price": num(row["price"]),
+                                      "img": photo_url(row), "cat": row["cat_name"],
+                                      "sold_out": servings(row["recipe"]) < 1})
     groups = {}
-    for c in categories():
-        if by_cat[c["id"]]:
-            groups.setdefault(c["group"], {"name": c["group"], "cats": []})["cats"].append({**c, "items": by_cat[c["id"]]})
+    for category_data in categories():
+        if by_cat[category_data["id"]]:
+            groups.setdefault(category_data["group"], {"name": category_data["group"], "cats": []})["cats"].append(
+                {**category_data, "items": by_cat[category_data["id"]]})
     return list(groups.values())

@@ -15,13 +15,15 @@ def test_register_sends_code_and_verify_creates_account(anon, outbox):
     r = anon.post("/verify", data=form(code="000000"))
     assert b"Incorrect code" in r.data
     r = anon.post("/verify", data=form(code=code_in(outbox[0])))
-    assert r.status_code == 302 and r.location.endswith("/account")
+    assert r.status_code == 302 and r.location.endswith("/")
     user = q("SELECT name, password_hash FROM users WHERE email='new@test.local'")[0]
     assert user["name"] == "New Person" and "hunter22" not in user["password_hash"]   # stored hashed
     assert anon.get("/account").status_code == 200
 
 
 def test_register_rejects_short_password_and_duplicate_email(anon, outbox):
+    r = anon.post("/register", data=form(name="X", email="invalid-email", password="longenough"))
+    assert b"valid email address" in r.data and not outbox
     r = anon.post("/register", data=form(name="X", email="short@test.local", password="12345"))
     assert b"at least 6 characters" in r.data and not outbox
     _, email = make_customer()
@@ -36,6 +38,23 @@ def test_login_with_code(anon, outbox):
     r = anon.post("/verify?next=/menu", data=form(code=code_in(outbox[0])))
     assert r.status_code == 302 and r.location.endswith("/menu")
     assert anon.get("/menu").status_code == 200
+
+
+def test_login_without_next_redirects_to_home(anon, outbox):
+    _, email = make_customer(password="right-pass")
+    r = anon.post("/login", data=form(email=email, password="right-pass"))
+    assert r.status_code == 302 and "/verify" in r.location
+    r = anon.post("/verify", data=form(code=code_in(outbox[0])))
+    assert r.status_code == 302 and r.location.endswith("/")
+
+
+def test_login_rejects_encoded_backslash_next_redirect(anon, outbox):
+    _, email = make_customer(password="right-pass")
+    r = anon.post("/login?next=/%255Cattacker.example", data=form(email=email, password="right-pass"))
+    assert r.status_code == 302 and "/verify" in r.location
+    r = anon.post(r.location, data=form(code=code_in(outbox[0])))
+    assert r.status_code == 302 and r.location.endswith("/")
+    assert "attacker.example" not in r.location
 
 
 def test_login_wrong_password_or_unknown_email(anon, outbox):
@@ -83,7 +102,7 @@ def test_logout(customer):
 
 def test_post_without_csrf_is_refused(anon):
     r = anon.post("/login", data={"email": "a@b.c", "password": "x"})
-    assert r.status_code == 400
+    assert r.status_code == 400 and b"form may have expired" in r.data
 
 
 def test_forgot_and_reset_password(anon, outbox):

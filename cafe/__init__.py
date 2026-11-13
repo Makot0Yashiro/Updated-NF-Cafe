@@ -4,7 +4,7 @@ try:                                             # local convenience: read setti
     load_dotenv()
 except ImportError:
     pass
-from flask import Flask, session, request, jsonify
+from flask import Flask, session, request, jsonify, render_template
 from werkzeug.middleware.proxy_fix import ProxyFix
 from . import db
 from .config import PRODUCTION
@@ -46,11 +46,33 @@ def create_app():
     def healthz():
         return "ok"
 
+    def error_response(code, title, message, api_message=None):
+        if request.path.startswith(("/api/", "/admin/api/")) or request.is_json:
+            return jsonify(error=api_message or message), code
+        return render_template("error.html", code=code, title=title, message=message), code
+
+    @app.errorhandler(400)
+    def bad_request(e):
+        return error_response(400, "We couldn't process that request", "This form may have expired. Refresh the page and try again.",
+                              "Your request couldn't be verified. Refresh the page and try again.")
+
+    @app.errorhandler(403)
+    def forbidden(e):
+        return error_response(403, "Access denied", "You don't have permission to view this page.")
+
+    @app.errorhandler(404)
+    def not_found(e):
+        return error_response(404, "Page not found", "We couldn't find that page. It may have moved or the link may be incorrect.",
+                              "The requested resource was not found.")
+
     @app.errorhandler(413)
     def too_large(e):
-        if request.path.startswith("/admin/api/"):
-            return jsonify(error="Photo is too large, max 5 MB."), 413
-        return e
+        return error_response(413, "File too large", "That upload is too large. Please choose an image up to 5 MB.",
+                              "Photo is too large, max 5 MB.")
+
+    @app.errorhandler(500)
+    def server_error(e):
+        return error_response(500, "Something went wrong", "An unexpected error occurred. Please try again in a moment.")
 
     @app.context_processor
     def inject():

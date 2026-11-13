@@ -1,5 +1,6 @@
 """Pages load, and the database sets itself up (once) from an empty database."""
 import os, subprocess, sys
+from werkzeug.exceptions import Forbidden, RequestEntityTooLarge
 from conftest import TEST_DB, connect, drop_database, q
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -7,10 +8,42 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def test_public_and_customer_pages(anon, customer):
     assert anon.get("/").status_code == 200
-    assert anon.get("/login").status_code == 200 and anon.get("/register").status_code == 200
+    login = anon.get("/login")
+    assert login.status_code == 200 and b"auth-layout--customer" in login.data and b'href="/register"' in login.data
+    assert b"<nav>" not in login.data
+    admin_login = anon.get("/admin-login")
+    assert admin_login.status_code == 200 and b"auth-layout--admin" in admin_login.data and b"<nav>" not in admin_login.data
+    assert anon.get("/register").status_code == 200
     assert anon.get("/healthz").get_data(as_text=True) == "ok"
     for path in ("/menu", "/your-order", "/account"):
         assert customer.get(path).status_code == 200, path
+
+
+def test_friendly_error_pages_and_api_errors(anon):
+    missing = anon.get("/does-not-exist")
+    assert missing.status_code == 404 and b"Page not found" in missing.data and b"Back to the home page" in missing.data
+    missing_api = anon.get("/admin/api/ingredients")
+    assert missing_api.status_code == 404 and missing_api.is_json
+
+
+def test_friendly_forbidden_upload_and_server_errors(app):
+    with app.test_request_context("/_test/forbidden"):
+        forbidden = app.make_response(app.handle_http_exception(Forbidden()))
+    assert forbidden.status_code == 403 and b"Access denied" in forbidden.data
+
+    with app.test_request_context("/_test/upload"):
+        oversized = app.make_response(app.handle_http_exception(RequestEntityTooLarge()))
+    assert oversized.status_code == 413 and b"up to 5 MB" in oversized.data
+
+    propagate = app.config["PROPAGATE_EXCEPTIONS"]
+    app.config["PROPAGATE_EXCEPTIONS"] = False
+    try:
+        with app.test_request_context("/_test/failure"):
+            failure = app.handle_exception(RuntimeError("internal detail"))
+    finally:
+        app.config["PROPAGATE_EXCEPTIONS"] = propagate
+    assert failure.status_code == 500 and b"Something went wrong" in failure.data
+    assert b"internal detail" not in failure.data
 
 
 def test_admin_pages(admin):

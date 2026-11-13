@@ -5,19 +5,24 @@ from ..db import get_db
 from ..auth_utils import login_required, check_csrf
 from ..menu_data import COUPONS, CAFE_LOCATION
 from .. import catalog
-from ..stock import take_for_order, on_order_change, OutOfStock
+from ..models import Order
+from ..repositories import OrderRepository
+from ..stock import StockService, OutOfStock
 
 bp = Blueprint("orders", __name__)
 TRIP_SECONDS = 120   # how long the courier marker takes to move from the cafe to the customer (demo animation)
 
 
 def stages(order_type):
-    base = ["Received", "Preparing", "Ready"]
-    return base + (["Out for delivery", "Delivered"] if order_type == "delivery" else ["Completed"])
+    return Order.stages_for(order_type)
 
 
 def now():
     return datetime.now(timezone.utc)
+
+
+def _repository():
+    return OrderRepository(get_db())
 
 
 def locate(row):
@@ -37,9 +42,10 @@ def refresh(row):
     lat, lng = locate(row)
     if row["cur_lat"] != lat or row["cur_lng"] != lng:
         db = get_db()
-        db.execute("UPDATE orders SET cur_lat=?, cur_lng=? WHERE id=?", (lat, lng, row["id"]))
+        repository = OrderRepository(db)
+        repository.update_location(row["id"], lat, lng)
         db.commit()
-        row = db.execute("SELECT * FROM orders WHERE id=?", (row["id"],)).fetchone()
+        row = repository.get(row["id"]).to_record()
     return row
 
 
@@ -48,22 +54,28 @@ def _change_order(order_id, status=None, pay_status=None):
     Returns the updated row, None if the change isn't valid, and raises OutOfStock if reopening the order needs stock that's gone."""
     db = get_db()
     db.commit()                                   # start a fresh transaction so FOR UPDATE sees the latest row
-    row = db.execute("SELECT * FROM orders WHERE id=? FOR UPDATE", (order_id,)).fetchone()
-    if not row or (status is not None and status not in stages(row["order_type"]) + ["Cancelled"]) or \
+    repository = OrderRepository(db)
+    order = repository.get(order_id, lock=True)
+    if not order or (status is not None and status not in stages(order.order_type) + ["Cancelled"]) or \
             (pay_status is not None and pay_status not in ("paid", "rejected")):
         db.rollback()
         return None
     try:
-        returned = on_order_change(db, row, status or row["status"], pay_status or row["pay_status"])
+        record = order.to_record()
+        returned = StockService.on_order_change(db, record, status or order.status, pay_status or order.pay_status)
         if status is not None:
-            db.execute("UPDATE orders SET status=?, status_at=?, stock_returned=? WHERE id=?", (status, now().isoformat(), returned, order_id))
+            order.set_status(status)
+            order.status_at = now().isoformat()
         else:
-            db.execute("UPDATE orders SET pay_status=?, pay_at=?, stock_returned=? WHERE id=?", (pay_status, now().isoformat(), returned, order_id))
+            order.set_payment_status(pay_status)
+            order.pay_at = now().isoformat()
+        order.stock_returned = returned
+        repository.save(order)
         db.commit()
     except Exception:
         db.rollback()
         raise
-    return db.execute("SELECT * FROM orders WHERE id=?", (order_id,)).fetchone()
+    return repository.get(order_id).to_record()
 
 
 def set_status(order_id, status):
@@ -86,14 +98,14 @@ def public_order(r):
 
 
 def _own(order_id):
-    r = get_db().execute("SELECT * FROM orders WHERE id=? AND user_id=?", (order_id, session["user_id"])).fetchone()
-    return r or abort(404)
+    order = _repository().get(order_id, user_id=session["user_id"])
+    return order.to_record() if order else abort(404)
 
 
 @bp.get("/your-order")
 @login_required
 def your_order():
-    rows = get_db().execute("SELECT * FROM orders WHERE user_id=? ORDER BY id DESC", (session["user_id"],)).fetchall()
+    rows = [order.to_record() for order in _repository().list(user_id=session["user_id"])]
     return render_template("order.html", orders=[public_order(refresh(r)) for r in rows], cafe=CAFE_LOCATION)
 
 
@@ -145,14 +157,16 @@ def create_order():
     db = get_db()
     ts = now().isoformat()
     try:                                          # stock + order in one transaction: both happen or neither does
-        stock_json = take_for_order(db, stock_lines)
-        cur = db.execute(
-            "INSERT INTO orders(user_id,customer_name,order_type,payment,note,items_json,subtotal,coupon,discount,total,status,status_at,"
-            "dest_lat,dest_lng,dest_address,cur_lat,cur_lng,pay_status,pay_ref,created_at,stock_json,stock_returned) "
-            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)",
-            (session["user_id"], session["user_name"], otype, payment, str(d.get("note", ""))[:200], json.dumps(lines), subtotal,
-             code if discount else "", discount, round(subtotal - discount, 2), "Received", ts, dlat, dlng, address if otype == "delivery" else None,
-             CAFE_LOCATION[0], CAFE_LOCATION[1], "pending" if payment == "online" else "unpaid", ref if payment == "online" else None, ts, stock_json))
+        stock_json = StockService.take_for_order(db, stock_lines)
+        order = Order(
+            None, otype, "Received", "pending" if payment == "online" else "unpaid",
+            stock_json=stock_json, user_id=session["user_id"], customer_name=session["user_name"], payment=payment,
+            note=str(d.get("note", ""))[:200], items_json=json.dumps(lines), subtotal=subtotal,
+            coupon=code if discount else "", discount=discount, total=round(subtotal - discount, 2), status_at=ts,
+            dest_lat=dlat, dest_lng=dlng, cur_lat=CAFE_LOCATION[0], cur_lng=CAFE_LOCATION[1],
+            pay_ref=ref if payment == "online" else None,
+            dest_address=address if otype == "delivery" else None, created_at=ts)
+        _repository().save(order)
         db.commit()
     except OutOfStock as e:
         db.rollback()
@@ -160,13 +174,13 @@ def create_order():
     except Exception:
         db.rollback()
         raise
-    return jsonify(id=cur.lastrowid), 201
+    return jsonify(id=order.id), 201
 
 
 @bp.get("/api/orders")
 @login_required
 def list_orders():
-    rows = get_db().execute("SELECT * FROM orders WHERE user_id=? ORDER BY id DESC", (session["user_id"],)).fetchall()
+    rows = [order.to_record() for order in _repository().list(user_id=session["user_id"])]
     return jsonify([public_order(refresh(r)) for r in rows])
 
 
