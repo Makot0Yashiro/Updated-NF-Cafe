@@ -57,6 +57,10 @@ def login():
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
         user = UserRepository(get_db()).get_by_email(email) if email else None
+        if user and user.is_admin and user.verify_password(password):
+            session.clear()
+            session.update(user_id=user.id, user_name=user.name, is_admin=True)
+            return redirect(url_for("admin.dashboard"))
         if user and not user.is_admin and user.verify_password(password):
             resp = _begin(user.email, "login")
             if resp:
